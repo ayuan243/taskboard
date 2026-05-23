@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日历任务板</title>
+<style>
+  :root {
+    --bg: #f2eeea;
+    --surface: #ffffff;
+    --surface2: #faf8f5;
+    --accent: #a07bc8;
+    --accent2: #c4a0e8;
+    --text: #2e2640;
+    --text-dim: #9b92b0;
+    --border: #e8e2f0;
+    --shadow: 0 3px 16px #c8bcd826;
+    --shadow-hover: 0 10px 36px #c8bcd844;
+    --radius: 22px;
+    --cell-min: 300px;
+    --blur: 0px;
+  }
+
+  /* ══ Desktop Widget Mode ══ */
+  body.desktop-widget {
+    --bg: transparent;
+    --surface: rgba(255,255,255,0.09);
+    --surface2: rgba(255,255,255,0.06);
+    --border: rgba(255,255,255,0.18);
+    --text: rgba(255,255,255,0.93);
+    --text-dim: rgba(255,255,255,0.50);
+    --accent: #d0a8ff;
+    --accent2: #e8c8ff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.10);
+    --shadow-hover: 0 10px 36px rgba(0,0,0,0.20);
+    --blur: 20px;
+    background: transparent !important;
+  }
+  /* Glass header */
+  body.desktop-widget .header {
+    background: rgba(10,8,24,0.30) !important;
+    backdrop-filter: blur(32px) saturate(1.6) !important;
+    -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+    cursor: move;
+    -webkit-app-region: drag; /* for future Electron compat */
+  }
+  body.desktop-widget .header * { -webkit-app-region: no-drag; }
+  body.desktop-widget .app-title {
+    background: linear-gradient(135deg,#e0b8ff,#90d0ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+  body.desktop-widget .date-range { color: rgba(255,255,255,0.88) !important; }
+  /* Glass buttons */
+  body.desktop-widget .btn {
+    background: rgba(255,255,255,0.12) !important;
+    border-color: rgba(255,255,255,0.20) !important;
+    color: rgba(255,255,255,0.88) !important;
+    box-shadow: none !important;
+  }
+  body.desktop-widget .btn:hover {
+    background: rgba(160,123,200,0.55) !important;
+    border-color: rgba(160,123,200,0.7) !important;
+    color: white !important;
+  }
+  body.desktop-widget .btn-primary {
+    background: rgba(160,123,200,0.60) !important;
+    border-color: rgba(160,123,200,0.80) !important;
+  }
+  /* Pin toggle button */
+  .pin-btn { font-size: 13px; transition: all .2s; }
+  .pin-btn.is-pinned { color: var(--text-dim); }
+  .pin-btn.is-floating { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+  body.desktop-widget .pin-btn.is-pinned {
+    background: rgba(255,255,255,0.08) !important;
+    border-color: rgba(255,255,255,0.14) !important;
+    color: rgba(255,255,255,0.45) !important;
+  }
+  body.desktop-widget .pin-btn.is-floating {
+    background: rgba(160,123,200,0.55) !important;
+    border-color: rgba(160,123,200,0.80) !important;
+    color: white !important;
+    box-shadow: 0 0 12px rgba(160,123,200,0.4) !important;
+  }
+  body.desktop-widget .view-toggle { background: rgba(255,255,255,0.10) !important; }
+  body.desktop-widget .view-toggle button { color: rgba(255,255,255,0.55) !important; }
+  /* Glass cells */
+  body.desktop-widget .day-cell {
+    backdrop-filter: blur(var(--blur)) saturate(1.4) !important;
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(1.4) !important;
+    border-color: rgba(255,255,255,0.16) !important;
+  }
+  body.desktop-widget .day-cell.today {
+    border-color: rgba(208,168,255,0.70) !important;
+    box-shadow: 0 0 0 2px rgba(208,168,255,0.25), var(--shadow-hover) !important;
+  }
+  body.desktop-widget .date-num { color: rgba(255,255,255,0.92) !important; }
+  body.desktop-widget .day-cell.today .date-num { color: white !important; background: rgba(160,123,200,0.75) !important; }
+  body.desktop-widget .cell-day-name { color: rgba(255,255,255,0.55) !important; }
+  body.desktop-widget .cell-month-tag { background: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.70) !important; }
+  body.desktop-widget .task-item { color: var(--cell-text, rgba(255,255,255,0.88)) !important; }
+  body.desktop-widget .task-item:hover { background: rgba(255,255,255,0.10) !important; }
+  body.desktop-widget .task-check { border-color: rgba(255,255,255,0.38) !important; }
+  body.desktop-widget .cell-diary-sep { background: rgba(255,255,255,0.13) !important; }
+  body.desktop-widget .cell-diary-preview { color: var(--cell-text, rgba(255,255,255,0.82)) !important; }
+  body.desktop-widget .cell-more { color: rgba(208,168,255,0.85) !important; }
+  body.desktop-widget .add-hint { color: rgba(255,255,255,0.35) !important; }
+  body.desktop-widget .cal-event-item { background: rgba(160,123,200,0.28) !important; color: rgba(255,255,255,0.85) !important; }
+  body.desktop-widget .resize-handle::before { background: rgba(255,255,255,0.18) !important; }
+  body.desktop-widget .day-cell:hover .resize-handle::before { background: rgba(255,255,255,0.35) !important; }
+  /* Glass modal */
+  body.desktop-widget .modal-overlay { background: rgba(0,0,0,0.45) !important; }
+  body.desktop-widget .modal {
+    background: rgba(16,12,32,0.82) !important;
+    backdrop-filter: blur(40px) saturate(1.5) !important;
+    -webkit-backdrop-filter: blur(40px) saturate(1.5) !important;
+    border-color: rgba(255,255,255,0.14) !important;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.40) !important;
+  }
+  body.desktop-widget .modal-header h2 { color: rgba(255,255,255,0.95) !important; }
+  body.desktop-widget .modal-date-lbl { color: rgba(255,255,255,0.50) !important; }
+  body.desktop-widget .close-btn { background: rgba(255,255,255,0.10) !important; border-color: rgba(255,255,255,0.15) !important; color: rgba(255,255,255,0.60) !important; }
+  body.desktop-widget .tab-btn { color: rgba(255,255,255,0.48) !important; }
+  body.desktop-widget .tab-btn:hover { background: rgba(255,255,255,0.10) !important; color: rgba(255,255,255,0.80) !important; }
+  body.desktop-widget .tab-btn.active { background: rgba(160,123,200,0.70) !important; color: white !important; }
+  body.desktop-widget .task-input { background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.14) !important; color: white !important; }
+  body.desktop-widget .task-input::placeholder { color: rgba(255,255,255,0.35) !important; }
+  body.desktop-widget .modal-task-item { background: rgba(255,255,255,0.07) !important; }
+  body.desktop-widget .modal-task-item:hover { border-color: rgba(255,255,255,0.18) !important; }
+  body.desktop-widget .modal-task-text { color: rgba(255,255,255,0.90) !important; }
+  body.desktop-widget .modal-check { border-color: rgba(255,255,255,0.28) !important; }
+  body.desktop-widget .task-del { color: rgba(255,140,140,0.80) !important; }
+  body.desktop-widget .diary-textarea {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.13) !important;
+    color: rgba(255,255,255,0.88) !important;
+    background-image: repeating-linear-gradient(transparent,transparent 33px,rgba(255,255,255,0.05) 33px,rgba(255,255,255,0.05) 34px) !important;
+  }
+  body.desktop-widget .diary-textarea::placeholder { color: rgba(255,255,255,0.30) !important; }
+  body.desktop-widget .diary-char-count { color: rgba(255,255,255,0.35) !important; }
+  body.desktop-widget .section-label { color: rgba(255,255,255,0.38) !important; }
+  body.desktop-widget .size-btn { background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.60) !important; }
+  body.desktop-widget .size-btn.active { background: rgba(160,123,200,0.65) !important; border-color: rgba(160,123,200,0.80) !important; color: white !important; }
+  body.desktop-widget .font-btn { background: rgba(255,255,255,0.07) !important; border-color: rgba(255,255,255,0.12) !important; }
+  body.desktop-widget .font-btn.active { background: rgba(160,123,200,0.30) !important; border-color: rgba(160,123,200,0.65) !important; }
+  body.desktop-widget .font-btn-label { color: rgba(255,255,255,0.50) !important; }
+  body.desktop-widget .font-btn-sample { color: rgba(255,255,255,0.85) !important; }
+  body.desktop-widget .ts-btn { background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.55) !important; }
+  body.desktop-widget .ts-btn.active { background: rgba(160,123,200,0.65) !important; border-color: rgba(160,123,200,0.80) !important; color: white !important; }
+  body.desktop-widget .color-swatch.clear { background: rgba(255,255,255,0.10) !important; }
+  body.desktop-widget .img-upload-area { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.14) !important; }
+  body.desktop-widget .img-upload-area p { color: rgba(255,255,255,0.40) !important; }
+  body.desktop-widget .modal-divider { border-color: rgba(255,255,255,0.10) !important; }
+  body.desktop-widget .clear-bg-btn { color: rgba(255,160,160,0.80) !important; border-color: rgba(255,160,160,0.28) !important; }
+  body.desktop-widget .sync-info { color: rgba(255,255,255,0.50) !important; }
+  body.desktop-widget .code-block { background: rgba(0,0,0,0.30) !important; border-color: rgba(255,255,255,0.10) !important; color: rgba(208,168,255,0.90) !important; }
+
+  /* ── Inline editing (desktop widget only) ── */
+  .cell-inline-add {
+    padding: 3px 10px 9px; position: relative; z-index: 2; display: none;
+  }
+  body.desktop-widget .cell-inline-add { display: block; }
+  .cell-quick-input {
+    width: 100%; background: rgba(255,255,255,0.09);
+    border: 1.5px solid rgba(255,255,255,0.15); border-radius: 9px;
+    color: rgba(255,255,255,0.88); font-size: 12px; padding: 7px 11px;
+    outline: none; font-family: inherit; transition: all .15s;
+  }
+  .cell-quick-input::placeholder { color: rgba(255,255,255,0.30); }
+  .cell-quick-input:focus {
+    border-color: rgba(208,168,255,0.65);
+    background: rgba(255,255,255,0.15);
+  }
+  /* Diary hint (placeholder / content preview in desktop widget) */
+  .cell-diary-hint {
+    font-size: 11px; color: rgba(255,255,255,0.38); padding: 3px 10px 6px;
+    cursor: text; transition: color .15s; display: none;
+    position: relative; z-index: 1;
+  }
+  body.desktop-widget .cell-diary-hint { display: block; }
+  body.desktop-widget .cell-diary-hint.has-content {
+    color: var(--cell-text, rgba(255,255,255,0.82)) !important;
+    font-size: 12px;
+  }
+  .cell-diary-hint:hover { color: rgba(255,255,255,0.65); }
+  /* Inline diary textarea inside cell */
+  .cell-diary-inline {
+    width: 100%; min-height: 72px;
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.18); border-radius: 9px;
+    color: rgba(255,255,255,0.86); font-style: italic; font-size: 12px;
+    line-height: 1.65; padding: 8px 11px; resize: vertical; outline: none;
+    font-family: inherit; transition: border-color .15s; display: block; width: 100%;
+  }
+  .cell-diary-inline:focus { border-color: rgba(208,168,255,0.65); }
+
+  /* Window resize handles */
+  .win-resize { position: fixed; z-index: 99999; }
+  #wr-e  { top: 0; right: 0; width: 6px; height: calc(100% - 12px); cursor: e-resize; }
+  #wr-s  { bottom: 0; left: 0; width: calc(100% - 12px); height: 6px; cursor: s-resize; }
+  #wr-se { bottom: 0; right: 0; width: 16px; height: 16px; cursor: se-resize; }
+  #wr-se::after {
+    content: ''; position: absolute; right: 3px; bottom: 3px;
+    width: 8px; height: 8px;
+    border-right: 2px solid rgba(0,0,0,0.18); border-bottom: 2px solid rgba(0,0,0,0.18);
+    border-radius: 0 0 2px 0;
+  }
+  body.desktop-widget #wr-se::after { border-color: rgba(255,255,255,0.28); }
+
+  /* Desktop close/quit button */
+  .desktop-quit-btn {
+    display: none;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(255,80,80,0.55); border: 1.5px solid rgba(255,120,120,0.4);
+    color: white; font-size: 14px; cursor: pointer; line-height: 1;
+    align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
+  }
+  body.desktop-widget .desktop-quit-btn { display: flex; }
+  .desktop-quit-btn:hover { background: rgba(255,60,60,0.80); transform: scale(1.1); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 18px 28px 15px;
+    background: rgba(255,255,255,0.9);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border);
+  }
+  .app-title {
+    font-size: 22px; font-weight: 900;
+    background: linear-gradient(135deg, #b07fd4 0%, #7bb8e8 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .nav-group { display: flex; align-items: center; gap: 8px; }
+  .date-range {
+    font-size: 16px; font-weight: 700; color: var(--text);
+    min-width: 230px; text-align: center;
+  }
+  .spacer { flex: 1; }
+  .btn {
+    background: var(--surface); border: 1.5px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 8px 15px; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all .18s;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+    box-shadow: var(--shadow);
+  }
+  .btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; transform: translateY(-1px); box-shadow: var(--shadow-hover); }
+  .btn-icon { padding: 8px 13px; font-size: 16px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+
+  /* ── 3×3 Grid ── */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    padding: 22px 28px 32px;
+    align-items: start;
+  }
+
+  /* ── Day Cell ── */
+  .day-cell {
+    min-height: var(--cell-min);
+    border-radius: var(--radius);
+    border: 1.5px solid transparent;
+    background: var(--surface);
+    background-size: cover; background-position: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform .18s, box-shadow .18s;
+    display: flex; flex-direction: column;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .day-cell:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+  .day-cell.today { border-color: var(--accent); box-shadow: 0 0 0 3px #a07bc822, var(--shadow-hover); }
+
+  .cell-bg-overlay {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.32) 100%);
+    transition: opacity .18s;
+  }
+  .day-cell.has-img .cell-bg-overlay { opacity: 1; }
+
+  /* Cell header */
+  .cell-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 18px 18px 8px; position: relative; z-index: 1; flex-shrink: 0;
+  }
+  .cell-date-info { display: flex; flex-direction: column; gap: 2px; }
+  .cell-day-name {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .day-cell.has-img .cell-day-name { color: rgba(255,255,255,0.75); }
+  .day-cell.today .cell-day-name { color: var(--accent); }
+  .date-num {
+    font-size: 48px; font-weight: 900; line-height: 1; letter-spacing: -2px;
+    color: var(--text);
+  }
+  .day-cell.has-img .date-num { color: #fff; text-shadow: 0 2px 10px #0005; }
+  .day-cell.today .date-num { color: var(--accent); }
+  .cell-month-tag {
+    font-size: 12px; font-weight: 600; color: var(--text-dim);
+    background: rgba(0,0,0,0.06); padding: 2px 8px; border-radius: 20px;
+    align-self: flex-start; margin-top: 4px;
+  }
+  .day-cell.has-img .cell-month-tag { background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); }
+
+  .cell-actions { opacity: 0; transition: opacity .15s; display: flex; gap: 4px; flex-shrink: 0; }
+  .day-cell:hover .cell-actions { opacity: 1; }
+  .cell-btn {
+    width: 28px; height: 28px; border-radius: 9px;
+    background: rgba(255,255,255,0.8); border: none; color: var(--text);
+    cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+    transition: all .15s; backdrop-filter: blur(4px);
+  }
+  .cell-btn:hover { background: var(--accent); color: #fff; }
+  .day-cell.has-img .cell-btn { background: rgba(255,255,255,0.25); color: #fff; }
+
+  /* Cell content */
+  .cell-content { flex: 1; padding: 4px 18px 10px; position: relative; z-index: 1; overflow: hidden; }
+
+  .cell-tasks { margin-bottom: 8px; }
+  .task-item {
+    display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px;
+    border-radius: 8px; margin-bottom: 3px; cursor: pointer; transition: background .12s;
+    font-size: 13px; line-height: 1.45; color: var(--text);
+  }
+  .task-item:hover { background: rgba(0,0,0,0.05); }
+  .day-cell.has-img .task-item { color: #fff; }
+  .day-cell.has-img .task-item:hover { background: rgba(255,255,255,0.15); }
+  .task-item.done { opacity: 0.38; }
+  .task-item.done .task-text { text-decoration: line-through; }
+  .task-check {
+    width: 15px; height: 15px; border-radius: 5px; border: 1.5px solid var(--text-dim);
+    flex-shrink: 0; margin-top: 2px; font-size: 9px;
+    display: flex; align-items: center; justify-content: center; transition: all .12s;
+  }
+  .day-cell.has-img .task-check { border-color: rgba(255,255,255,0.6); }
+  .task-item.done .task-check { background: #6ecf87; border-color: #6ecf87; color: #fff; }
+  .task-text { flex: 1; word-break: break-word; }
+
+  /* Diary preview */
+  .cell-diary-sep { height: 1px; background: rgba(0,0,0,0.07); margin: 6px 0; }
+  .day-cell.has-img .cell-diary-sep { background: rgba(255,255,255,0.2); }
+  .cell-diary-preview {
+    font-style: italic; font-size: 12.5px; color: var(--text-dim); line-height: 1.6;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .day-cell.has-img .cell-diary-preview { color: rgba(255,255,255,0.72); }
+
+  .cell-more { font-size: 11px; font-weight: 600; color: var(--accent); margin-top: 4px; }
+  .day-cell.has-img .cell-more { color: rgba(255,255,255,0.7); }
+
+  /* Cal events */
+  .cell-cal-events { padding: 0 18px 8px; position: relative; z-index: 1; flex-shrink: 0; }
+  .cal-event-item {
+    font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(160,123,200,0.12); color: var(--accent);
+    margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;
+  }
+  .day-cell.has-img .cal-event-item { background: rgba(255,255,255,0.2); color: #fff; }
+
+  .add-hint {
+    font-size: 11.5px; color: var(--text-dim); padding: 4px 18px 6px;
+    display: none; position: relative; z-index: 1; flex-shrink: 0;
+  }
+  .day-cell:hover .add-hint { display: block; }
+
+  /* ── Resize Handle ── */
+  .resize-handle {
+    height: 18px; cursor: row-resize; position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; user-select: none;
+  }
+  .resize-handle::before {
+    content: ''; display: block; width: 36px; height: 4px; border-radius: 3px;
+    background: rgba(0,0,0,0.1); transition: all .2s;
+  }
+  .day-cell:hover .resize-handle::before { background: rgba(0,0,0,0.25); width: 52px; }
+  .day-cell.has-img .resize-handle::before { background: rgba(255,255,255,0.35); }
+  .resize-handle:hover::before { background: var(--accent) !important; width: 60px !important; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(46,38,64,0.3);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; opacity: 0; pointer-events: none;
+    transition: opacity .22s; backdrop-filter: blur(10px);
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 26px; width: 580px; max-width: 96vw; max-height: 88vh;
+    overflow: hidden; display: flex; flex-direction: column;
+    transform: scale(0.93) translateY(12px); transition: transform .22s;
+    box-shadow: 0 28px 90px #2e264022;
+  }
+  .modal-overlay.open .modal { transform: scale(1) translateY(0); }
+
+  .modal-header {
+    padding: 22px 24px 0; display: flex; justify-content: space-between;
+    align-items: flex-start; flex-shrink: 0;
+  }
+  .modal-header h2 { font-size: 20px; font-weight: 800; color: var(--text); }
+  .modal-date-lbl { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; font-weight: 500; }
+  .close-btn {
+    width: 30px; height: 30px; border-radius: 10px; background: var(--surface2);
+    border: 1.5px solid var(--border); color: var(--text-dim); cursor: pointer;
+    font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .close-btn:hover { background: #fde8ea; border-color: #f0aab4; color: #e8527a; }
+
+  .modal-tabs {
+    display: flex; gap: 2px; padding: 14px 24px 0; flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 8px 18px; border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--text-dim);
+    border-radius: 11px; transition: all .15s;
+  }
+  .tab-btn:hover { background: var(--surface2); color: var(--text); }
+  .tab-btn.active { background: var(--accent); color: #fff; }
+
+  .modal-body { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Task panel */
+  .task-input-row { display: flex; gap: 8px; margin-bottom: 13px; }
+  .task-input {
+    flex: 1; background: var(--surface2); border: 1.5px solid var(--border);
+    color: var(--text); border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; outline: none; transition: border-color .15s; font-family: inherit;
+  }
+  .task-input:focus { border-color: var(--accent); }
+  .task-input::placeholder { color: var(--text-dim); }
+
+  .modal-task-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 12px; margin-bottom: 5px; background: var(--surface2);
+    border: 1.5px solid transparent; transition: all .12s;
+  }
+  .modal-task-item:hover { border-color: var(--border); }
+  .modal-task-item.done { opacity: 0.42; }
+  .modal-task-item.done .modal-task-text { text-decoration: line-through; }
+  .modal-check {
+    width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--border);
+    background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .12s; font-size: 11px;
+  }
+  .modal-task-item.done .modal-check { background: #6ecf87; border-color: #6ecf87; color: #fff; }
+  .modal-task-text { flex: 1; font-size: 14px; outline: none; color: var(--text); font-family: inherit; }
+  .modal-task-text[contenteditable]:focus { background: rgba(160,123,200,0.07); border-radius: 5px; padding: 0 4px; }
+  .task-del {
+    opacity: 0; background: none; border: none; color: #e8819a;
+    cursor: pointer; font-size: 15px; padding: 2px 5px; border-radius: 6px; transition: all .12s;
+  }
+  .modal-task-item:hover .task-del { opacity: 1; }
+  .task-del:hover { background: #fde8ea; }
+
+  /* Diary panel */
+  .diary-textarea {
+    width: 100%; min-height: 300px; background: var(--surface2);
+    border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; font-size: 15px; line-height: 1.9;
+    color: var(--text); outline: none; resize: vertical; transition: border-color .15s;
+    font-family: inherit;
+    background-image: repeating-linear-gradient(transparent, transparent 33px, #e8e2f04a 33px, #e8e2f04a 34px);
+    background-attachment: local;
+  }
+  .diary-textarea:focus { border-color: var(--accent); }
+  .diary-textarea::placeholder { color: var(--text-dim); }
+  .diary-char-count { font-size: 11px; color: var(--text-dim); text-align: right; margin-top: 7px; }
+
+  /* Style panel */
+  .section-label {
+    font-size: 10px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1.4px; margin: 16px 0 9px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  .size-presets { display: flex; gap: 7px; flex-wrap: wrap; }
+  .size-btn {
+    padding: 7px 15px; border-radius: 10px; border: 1.5px solid var(--border);
+    background: var(--surface2); cursor: pointer; font-size: 12.5px; font-weight: 600;
+    color: var(--text-dim); transition: all .15s;
+  }
+  .size-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .size-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .font-presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .font-btn {
+    padding: 9px 14px; border-radius: 12px; border: 1.5px solid var(--border);
+    background: var(--surface2); cursor: pointer; transition: all .15s;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px;
+  }
+  .font-btn:hover { border-color: var(--accent); }
+  .font-btn.active { background: #f0e8ff; border-color: var(--accent); }
+  .font-btn-sample { font-size: 18px; line-height: 1; color: var(--text); }
+  .font-btn-label { font-size: 10px; color: var(--text-dim); font-weight: 600; }
+  .font-btn.active .font-btn-label { color: var(--accent); }
+
+  .text-size-btns { display: flex; gap: 7px; }
+  .ts-btn {
+    padding: 6px 16px; border-radius: 10px; border: 1.5px solid var(--border);
+    background: var(--surface2); cursor: pointer; font-weight: 600; color: var(--text-dim); transition: all .15s;
+  }
+  .ts-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ts-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .color-picker-row { display: flex; flex-wrap: wrap; gap: 7px; }
+  .color-swatch {
+    width: 30px; height: 30px; border-radius: 10px; cursor: pointer;
+    border: 2px solid transparent; transition: all .14s; box-shadow: 0 2px 6px #0001;
+  }
+  .color-swatch:hover { transform: scale(1.2); }
+  .color-swatch.active { border-color: var(--accent); transform: scale(1.2); }
+  .color-swatch.clear { background: var(--surface2); border: 2px dashed var(--border); }
+  .color-swatch.clear.active { border-color: var(--accent); }
+  .custom-color-input {
+    width: 30px; height: 30px; border-radius: 10px; cursor: pointer;
+    border: 1.5px solid var(--border); overflow: hidden; padding: 0;
+  }
+
+  .img-upload-area {
+    border: 2px dashed var(--border); border-radius: 14px; padding: 16px;
+    text-align: center; cursor: pointer; transition: all .18s; position: relative;
+    background: var(--surface2);
+  }
+  .img-upload-area:hover { border-color: var(--accent); background: rgba(160,123,200,0.05); }
+  .img-upload-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .img-upload-area p { font-size: 13px; color: var(--text-dim); pointer-events: none; }
+  .img-preview { width: 100%; height: 78px; object-fit: cover; border-radius: 8px; margin-top: 8px; display: none; }
+  .modal-divider { border: none; border-top: 1.5px solid var(--border); margin: 14px 0; }
+  .clear-bg-btn {
+    margin-top: 8px; font-size: 12px; color: #e8819a; cursor: pointer; background: none;
+    border: 1.5px solid #f0c0cc; border-radius: 9px; padding: 6px 13px; transition: all .15s; font-weight: 500;
+  }
+  .clear-bg-btn:hover { background: #fde8ea; }
+
+  /* Sync modal */
+  .sync-info { font-size: 13.5px; color: var(--text-dim); line-height: 1.7; margin-bottom: 12px; }
+  .code-block {
+    background: var(--surface2); border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px; color: var(--accent); margin-bottom: 10px; white-space: pre-wrap; word-break: break-all;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(14px);
+    background: var(--surface); border: 1.5px solid var(--border); color: var(--text);
+    padding: 11px 20px; border-radius: 14px; font-size: 13px; font-weight: 500;
+    z-index: 9999; opacity: 0; transition: all .25s; pointer-events: none;
+    box-shadow: 0 8px 30px #2e264016;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 700px) {
+    .calendar-grid { grid-template-columns: 1fr; gap: 12px; padding: 14px 14px 24px; }
+    :root { --cell-min: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="desktop-quit-btn" title="退出" onclick="quitApp()">×</button>
+  <button class="btn pin-btn is-pinned" id="pinBtn" onclick="togglePin()" title="切换固定／浮动">◎ 固定</button>
+  <div class="app-title">任务板</div>
+  <div class="nav-group">
+    <button class="btn btn-icon" id="prevBtn">‹</button>
+    <span class="date-range" id="dateRange"></span>
+    <button class="btn btn-icon" id="nextBtn">›</button>
+    <button class="btn" id="todayBtn">今天</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn" onclick="openDefaultsModal()">⭐ 喜好</button>
+  <button class="btn" onclick="openSyncModal()">📅 日历同步</button>
+  <button class="btn btn-primary" onclick="exportICS()">导出 .ics</button>
+</div>
+
+<div class="calendar-grid" id="calendarGrid"></div>
+
+<!-- Main Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalTitle"></h2>
+        <div class="modal-date-lbl" id="modalDateLbl"></div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="tab-btn active" id="tab-tasks" onclick="switchTab('tasks')">📝 任务</button>
+      <button class="tab-btn" id="tab-diary" onclick="switchTab('diary')">📔 日记</button>
+      <button class="tab-btn" id="tab-style" onclick="switchTab('style')">🎨 外观</button>
+    </div>
+    <div class="modal-body">
+      <div class="tab-panel active" id="panel-tasks">
+        <div class="task-input-row">
+          <input class="task-input" id="newTaskInput" placeholder="添加新任务，回车确认…" />
+          <button class="btn btn-primary" onclick="addTask()">添加</button>
+        </div>
+        <div id="modalTaskList"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-diary">
+        <textarea class="diary-textarea" id="diaryTextarea" placeholder="记录今天的想法、心情、灵感…"></textarea>
+        <div class="diary-char-count" id="diaryCharCount">0 字</div>
+      </div>
+
+      <div class="tab-panel" id="panel-style">
+        <div class="section-label">格子大小</div>
+        <div class="size-presets" id="sizePresets"></div>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:7px">也可以直接拖动格子底部的横线自由调整</p>
+
+        <div class="section-label">字体样式</div>
+        <div class="font-presets" id="fontPresets"></div>
+
+        <div class="section-label">文字大小</div>
+        <div class="text-size-btns" id="textSizeBtns"></div>
+
+        <div class="section-label">文字颜色</div>
+        <div class="color-picker-row" id="textColorSwatches"></div>
+
+        <hr class="modal-divider">
+
+        <div class="section-label">背景颜色</div>
+        <div class="color-picker-row" id="colorSwatches"></div>
+
+        <div class="section-label">背景图片</div>
+        <div class="img-upload-area">
+          <p>🖼 点击上传图片</p>
+          <img class="img-preview" id="imgPreview" />
+          <input type="file" accept="image/*" onchange="handleImageUpload(event)" />
+        </div>
+        <button class="clear-bg-btn" onclick="clearBackground()">✕ 清除背景（恢复自动配色）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Defaults / Favorites Modal -->
+<div class="modal-overlay" id="defaultsModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div>
+        <h2>⭐ 喜好设置</h2>
+        <div class="modal-date-lbl">设置全局默认样式，对所有格子生效</div>
+      </div>
+      <button class="close-btn" onclick="closeDefaultsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-label">默认字体</div>
+      <div class="font-presets" id="defFontPresets"></div>
+
+      <div class="section-label">默认文字大小</div>
+      <div class="text-size-btns" id="defTextSizeBtns"></div>
+
+      <div class="section-label">默认文字颜色</div>
+      <div class="color-picker-row" id="defTextColorSwatches"></div>
+
+      <div class="section-label">默认背景颜色</div>
+      <div class="color-picker-row" id="defBgSwatches"></div>
+
+      <hr class="modal-divider">
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn" style="flex:1" onclick="resetDefaults()">↺ 恢复默认</button>
+        <button class="btn btn-primary" style="flex:1" onclick="applyDefaultsToAll()">应用到全部格子</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sync Modal -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>📅 日历同步</h2></div>
+      <button class="close-btn" onclick="closeSyncModal()">×</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto">
+      <p class="sync-info">与 macOS 日历联通：</p>
+      <div class="section-label" style="margin-top:0">方式一：导出 .ics</div>
+      <p class="sync-info">点击「导出 .ics」，在日历 App「文件 → 导入」。</p>
+      <div class="section-label">方式二：AppleScript</div>
+      <div class="code-block" id="appleScriptCode">osascript -e '
+set output to ""
+tell application "Calendar"
+  set theDate to current date
+  set startD to theDate - (day of theDate - 1) * days
+  set endD to startD + 31 * days
+  repeat with c in calendars
+    set evts to every event of c whose start date > startD and start date < endD
+    repeat with e in evts
+      set output to output & (start date of e as string) & "|" & summary of e & "
+"
+    end repeat
+  end repeat
+end tell
+return output'</div>
+      <button class="btn" onclick="copyScript()">📋 复制脚本</button><br><br>
+      <div class="section-label">粘贴导入文本（日期|标题）</div>
+      <textarea id="calImportText"
+        style="width:100%;height:80px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:11px;padding:9px 12px;font-size:13px;resize:vertical;outline:none;font-family:inherit;"
+        placeholder="May 23, 2026|团队周会&#10;May 24, 2026|产品评审"></textarea>
+      <br><br>
+      <button class="btn btn-primary" onclick="importCalEvents()">导入事件</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Constants ──
+const PASTEL_AUTO = [
+  '#FFE4EC','#FFE8D5','#FFF5CC','#E4F5E4','#D6EEFF',
+  '#EBD6FF','#FFD6F2','#D6FFF2','#FFECD6','#D8E8FF',
+  '#EEFFD6','#FFD6E2','#D6FAFF','#F4D6FF','#D6F2FF','#FFF0D6',
+];
+const BG_COLORS = [...PASTEL_AUTO, null];
+
+const FONT_PRESETS = [
+  { key:'default', label:'默认', sample:'Aa', family:'-apple-system,"PingFang SC","Microsoft YaHei",sans-serif' },
+  { key:'serif',   label:'宋体', sample:'文', family:'"STSong","SimSun","Noto Serif SC",Georgia,serif' },
+  { key:'kaiti',   label:'楷体', sample:'楷', family:'"STKaiti","KaiTi","AR PL UKai CN",serif' },
+  { key:'mono',    label:'等宽', sample:'</>', family:'"SF Mono","JetBrains Mono",Menlo,monospace' },
+  { key:'hand',    label:'手写', sample:'♡', family:'"Hanzipen SC","Hanzipen TC","Comic Sans MS",cursive' },
+];
+const CELL_SIZES = [
+  { key:'xs', label:'紧凑', h:160 },
+  { key:'sm', label:'小',   h:240 },
+  { key:'md', label:'中',   h:320 },
+  { key:'lg', label:'大',   h:440 },
+  { key:'xl', label:'超大', h:600 },
+];
+const TEXT_SIZES = [
+  { key:'sm', label:'小字', px:11 },
+  { key:'md', label:'中字', px:14 },
+  { key:'lg', label:'大字', px:17 },
+];
+const TEXT_COLORS = [
+  { label:'默认', color:null },
+  { label:'白',   color:'#ffffff' },
+  { label:'浅灰', color:'#e0e0e0' },
+  { label:'深灰', color:'#555555' },
+  { label:'黑',   color:'#1a1a1a' },
+  { label:'紫',   color:'#7c4dff' },
+  { label:'蓝',   color:'#1565c0' },
+  { label:'青',   color:'#00838f' },
+  { label:'绿',   color:'#2e7d32' },
+  { label:'橙',   color:'#e65100' },
+  { label:'红',   color:'#c62828' },
+  { label:'粉',   color:'#c2185b' },
+];
+
+// ── State ──
+const STORAGE_KEY = 'daily-taskboard-v2';
+const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null };
+let state = { days: {}, defaults: {...DEFAULT_DEFAULTS} };
+let pageStart = startOfToday(); // first day of current 9-day window
+let editingDay = null;
+let activeTab = 'tasks';
+
+const DAY_NAMES = ['日','一','二','三','四','五','六'];
+
+function startOfToday() {
+  const d = new Date(); d.setHours(0,0,0,0); return d;
+}
+function addDays(date, n) {
+  const d = new Date(date); d.setDate(d.getDate()+n); return d;
+}
+
+// ── Persistence ──
+function load() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if(r) state = {...state,...JSON.parse(r)}; } catch(e){}
+  if(!state.defaults) state.defaults = {...DEFAULT_DEFAULTS};
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function getDefaults() { return state.defaults; }
+function getDay(key) {
+  if (!state.days[key]) state.days[key] = {tasks:[],diary:'',bg:null,bgImg:null,calEvents:[],cellHeight:null,fontKey:null,textSizeKey:null,textColor:null};
+  const d = state.days[key];
+  if(!('diary' in d))d.diary='';
+  if(!('cellHeight' in d))d.cellHeight=null;
+  if(!('fontKey' in d))d.fontKey=null;
+  if(!('textSizeKey' in d))d.textSizeKey=null;
+  if(!('textColor' in d))d.textColor=null;
+  return d;
+}
+
+// ── Helpers ──
+function toKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayKey() { return toKey(startOfToday()); }
+function isToday(key) { return key===todayKey(); }
+function formatDateCN(key) { const [y,m,d]=key.split('-'); return `${y}年${+m}月${+d}日`; }
+
+function hashKey(key) {
+  let h=5381;
+  for(let i=0;i<key.length;i++) h=((h<<5)+h)^key.charCodeAt(i);
+  return Math.abs(h)%PASTEL_AUTO.length;
+}
+function getAutoColor(key) {
+  const base = PASTEL_AUTO[hashKey(key)];
+  if (isDesktopWidget) {
+    const r=parseInt(base.slice(1,3),16),g=parseInt(base.slice(3,5),16),b=parseInt(base.slice(5,7),16);
+    return `rgba(${r},${g},${b},0.14)`;
+  }
+  return base;
+}
+function darkenPastel(hex) {
+  if (isDesktopWidget) return 'rgba(255,255,255,0.16)';
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${Math.round(r*.5)},${Math.round(g*.46)},${Math.round(b*.48)},0.9)`;
+}
+function getFontFamily(key) {
+  const fk = getDay(key).fontKey || state.defaults.fontKey;
+  if(!fk) return null;
+  const p=FONT_PRESETS.find(f=>f.key===fk); return p?p.family:null;
+}
+function getTextPx(key) {
+  const tk = getDay(key).textSizeKey || state.defaults.textSizeKey;
+  if(!tk) return null;
+  const t=TEXT_SIZES.find(t=>t.key===tk); return t?t.px:null;
+}
+function getEffectiveTextColor(key) {
+  return getDay(key).textColor || state.defaults.textColor || null;
+}
+function getEffectiveBg(key) {
+  const d=getDay(key);
+  return d.bg !== null ? d.bg : (state.defaults.bg !== null ? state.defaults.bg : null);
+}
+
+// ── Render ──
+function render() {
+  const end = addDays(pageStart, 8);
+  document.getElementById('dateRange').textContent = formatRange(pageStart, end);
+  renderGrid();
+}
+
+function formatRange(s, e) {
+  const sm=s.getMonth()+1, sd=s.getDate(), em=e.getMonth()+1, ed=e.getDate(), sy=s.getFullYear(), ey=e.getFullYear();
+  if(sy===ey && sm===em) return `${sy}年${sm}月${sd}日 — ${ed}日`;
+  if(sy===ey) return `${sy}年${sm}月${sd}日 — ${em}月${ed}日`;
+  return `${sy}年${sm}月${sd}日 — ${ey}年${em}月${ed}日`;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = '';
+  for (let i=0; i<9; i++) {
+    const date = addDays(pageStart, i);
+    const key = toKey(date);
+    const data = getDay(key);
+    const cell = buildCell(key, date, data);
+
+    // ★ Append to DOM FIRST so getElementById works in render sub-functions
+    grid.appendChild(cell);
+
+    renderCellTasks(key);
+    renderCellDiary(key);
+    renderCellCalEvents(key);
+    initResizeHandle(key, cell); // also works now since cell is in DOM
+  }
+}
+
+function buildCell(key, date, data) {
+  const hasImg = !!data.bgImg;
+  const autoColor = getAutoColor(key);
+  const effectiveBg = getEffectiveBg(key);
+  const bgColor = effectiveBg !== null ? effectiveBg : autoColor;
+  const fontFamily = getFontFamily(key);
+  const textPx = getTextPx(key);
+  const today = isToday(key);
+
+  const cell = document.createElement('div');
+  cell.className = 'day-cell' + (today?' today':'') + (hasImg?' has-img':'');
+  cell.dataset.key = key;
+
+  if (hasImg) {
+    cell.style.backgroundImage = `url('${data.bgImg}')`;
+  } else {
+    cell.style.background = bgColor;
+    cell.style.borderColor = darkenPastel(bgColor)+'44';
+  }
+  if (data.cellHeight) cell.style.minHeight = data.cellHeight+'px';
+  if (fontFamily) cell.style.fontFamily = fontFamily;
+  if (textPx) cell.style.fontSize = textPx+'px';
+  const effectiveTC = getEffectiveTextColor(key);
+  if (effectiveTC) cell.style.setProperty('--cell-text', effectiveTC);
+  else cell.style.removeProperty('--cell-text');
+
+  const monthTag = (date.getMonth() !== pageStart.getMonth() || date.getFullYear() !== pageStart.getFullYear())
+    ? `<span class="cell-month-tag">${date.getMonth()+1}月</span>` : '';
+
+  cell.innerHTML = `
+    <div class="cell-bg-overlay"></div>
+    <div class="cell-header">
+      <div class="cell-date-info">
+        <div class="cell-day-name">星期${DAY_NAMES[date.getDay()]}</div>
+        <div class="date-num">${date.getDate()}</div>
+        ${monthTag}
+      </div>
+      <div class="cell-actions">
+        <button class="cell-btn" onclick="openModal('${key}',event)" title="编辑">✎</button>
+      </div>
+    </div>
+    <div class="cell-content">
+      <div class="cell-tasks" id="ct-${key}"></div>
+      <div id="cdp-${key}"></div>
+    </div>
+    <div class="cell-cal-events" id="ce-${key}"></div>
+    <div class="add-hint">＋ 点击添加任务或日记</div>
+    <div class="cell-inline-add" onclick="event.stopPropagation()">
+      <input class="cell-quick-input"
+        placeholder="＋ 添加任务，回车确认…"
+        onkeydown="quickAddTask(event,'${key}')"
+        onclick="event.stopPropagation()" />
+    </div>
+    <div class="resize-handle"></div>
+  `;
+
+  cell.addEventListener('click', (e) => {
+    if (e.target.closest('.cell-btn') || e.target.closest('.resize-handle')) return;
+    if (isDesktopWidget) {
+      const inp = cell.querySelector('.cell-quick-input');
+      if (inp && !e.target.closest('.cell-diary-hint') && !e.target.closest('#cdp-'+key)) {
+        inp.focus();
+      }
+    } else {
+      openModal(key, e);
+    }
+  });
+
+  return cell;
+}
+
+// ── Cell content renderers ──
+function renderCellTasks(key) {
+  const el = document.getElementById('ct-'+key); if(!el) return;
+  const tasks = getDay(key).tasks||[];
+  const MAX = 4;
+  const textPx = getTextPx(key);
+  el.innerHTML = '';
+  tasks.slice(0,MAX).forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'task-item'+(t.done?' done':'');
+    if(textPx) row.style.fontSize = textPx+'px';
+    row.innerHTML = `<div class="task-check">${t.done?'✓':''}</div><span class="task-text">${escHtml(t.text)}</span>`;
+    row.addEventListener('click', e => { e.stopPropagation(); toggleTask(key,t.id); });
+    el.appendChild(row);
+  });
+  if(tasks.length>MAX) {
+    const m=document.createElement('div'); m.className='cell-more';
+    if(textPx) m.style.fontSize=(textPx-1.5)+'px';
+    m.textContent=`+${tasks.length-MAX} 更多`;
+    el.appendChild(m);
+  }
+}
+
+function quickAddTask(e, key) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const text = e.target.value.trim();
+    if (!text) return;
+    getDay(key).tasks.push({ id: uid(), text, done: false });
+    save();
+    renderCellTasks(key);
+    e.target.value = '';
+  }
+  if (e.key === 'Escape') { e.target.value = ''; e.target.blur(); }
+}
+
+function activateDiaryInline(key) {
+  const wrapper = document.getElementById('cdp-'+key);
+  if (!wrapper) return;
+  const data = getDay(key);
+  wrapper.innerHTML = `<div class="cell-diary-sep"></div>
+    <textarea class="cell-diary-inline" placeholder="今天的日记…"
+      onclick="event.stopPropagation()"
+      onblur="saveDiaryInline('${key}',this)"
+      onkeydown="if(event.key==='Escape')this.blur()"
+    >${escHtml(data.diary||'')}</textarea>`;
+  const ta = wrapper.querySelector('textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function saveDiaryInline(key, ta) {
+  getDay(key).diary = ta.value;
+  save();
+  renderCellDiary(key);
+}
+
+function renderCellDiary(key) {
+  const wrapper = document.getElementById('cdp-'+key); if(!wrapper) return;
+  const diary = (getDay(key).diary||'').trim();
+  wrapper.innerHTML='';
+  const textPx = getTextPx(key);
+  if (isDesktopWidget) {
+    const hint = document.createElement('div');
+    hint.className = 'cell-diary-hint' + (diary ? ' has-content' : '');
+    hint.textContent = diary ? diary.slice(0, 60) + (diary.length > 60 ? '…' : '') : '✏ 点击写日记…';
+    hint.addEventListener('click', e => { e.stopPropagation(); activateDiaryInline(key); });
+    if (textPx) hint.style.fontSize = (textPx - 1) + 'px';
+    if (diary) {
+      const sep = document.createElement('div'); sep.className = 'cell-diary-sep';
+      wrapper.appendChild(sep);
+    }
+    wrapper.appendChild(hint);
+    return;
+  }
+  if(!diary) return;
+  const sep=document.createElement('div'); sep.className='cell-diary-sep';
+  const p=document.createElement('div'); p.className='cell-diary-preview';
+  if(textPx) p.style.fontSize=(textPx-1)+'px';
+  p.textContent=diary;
+  wrapper.appendChild(sep); wrapper.appendChild(p);
+}
+
+function renderCellCalEvents(key) {
+  const el=document.getElementById('ce-'+key); if(!el) return;
+  el.innerHTML='';
+  (getDay(key).calEvents||[]).slice(0,2).forEach(ev=>{
+    const d=document.createElement('div'); d.className='cal-event-item';
+    d.textContent='📅 '+ev; el.appendChild(d);
+  });
+}
+
+// ── Resize Handle ── (fixed: use querySelector on cell directly)
+function initResizeHandle(key, cell) {
+  const handle = cell.querySelector('.resize-handle');
+  if (!handle) return;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = cell.offsetHeight;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+
+    function onMove(mv) {
+      const newH = Math.max(120, startH + mv.clientY - startY);
+      cell.style.minHeight = newH+'px';
+    }
+    function onUp(up) {
+      const newH = Math.max(120, startH + up.clientY - startY);
+      getDay(key).cellHeight = Math.round(newH);
+      save();
+      document.body.style.userSelect='';
+      document.body.style.cursor='';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  handle.addEventListener('click', e => e.stopPropagation());
+}
+
+// ── Navigation ──
+document.getElementById('prevBtn').onclick = () => { pageStart = addDays(pageStart,-9); render(); };
+document.getElementById('nextBtn').onclick = () => { pageStart = addDays(pageStart,9); render(); };
+document.getElementById('todayBtn').onclick = () => { pageStart = startOfToday(); render(); };
+
+// ── Modal ──
+function openModal(key, e) {
+  if(e) e.stopPropagation();
+  editingDay = key;
+  document.getElementById('modalTitle').textContent = formatDateCN(key);
+  document.getElementById('modalDateLbl').textContent = isToday(key)?'📍 今天':'';
+  document.getElementById('taskModal').classList.add('open');
+  switchTab('tasks');
+  renderModalTasks(key);
+  renderDiaryPanel(key);
+  renderStylePanel(key);
+}
+function closeModal() {
+  if(editingDay) saveDiary();
+  document.getElementById('taskModal').classList.remove('open');
+  editingDay=null;
+}
+document.getElementById('taskModal').addEventListener('click', e=>{
+  if(e.target===document.getElementById('taskModal')) closeModal();
+});
+
+function switchTab(tabId) {
+  if(activeTab==='diary' && tabId!=='diary') saveDiary();
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+tabId).classList.add('active');
+  document.getElementById('tab-'+tabId).classList.add('active');
+  activeTab=tabId;
+  if(tabId==='tasks') setTimeout(()=>document.getElementById('newTaskInput').focus(),60);
+  if(tabId==='diary') setTimeout(()=>document.getElementById('diaryTextarea').focus(),60);
+}
+
+// ── Tasks ──
+function uid() { return Math.random().toString(36).slice(2,9); }
+
+function renderModalTasks(key) {
+  const data=getDay(key); const list=document.getElementById('modalTaskList'); list.innerHTML='';
+  data.tasks.forEach(t=>{
+    const el=document.createElement('div');
+    el.className='modal-task-item'+(t.done?' done':'');
+    el.innerHTML=`
+      <div class="modal-check" onclick="toggleTask('${key}','${t.id}');renderModalTasks('${key}')">${t.done?'✓':''}</div>
+      <span class="modal-task-text" contenteditable="true"
+        onblur="updateTaskText('${key}','${t.id}',this.textContent)">${escHtml(t.text)}</span>
+      <button class="task-del" onclick="deleteTask('${key}','${t.id}')">✕</button>`;
+    list.appendChild(el);
+  });
+}
+function addTask() {
+  if(!editingDay) return;
+  const input=document.getElementById('newTaskInput'); const text=input.value.trim(); if(!text) return;
+  getDay(editingDay).tasks.push({id:uid(),text,done:false}); save(); input.value='';
+  renderModalTasks(editingDay); renderCellTasks(editingDay);
+}
+document.getElementById('newTaskInput').addEventListener('keydown',e=>{if(e.key==='Enter')addTask();});
+
+function toggleTask(key,id) {
+  const t=getDay(key).tasks.find(t=>t.id===id); if(t)t.done=!t.done; save();
+  renderCellTasks(key); if(editingDay===key)renderModalTasks(key);
+}
+function updateTaskText(key,id,text) {
+  const t=getDay(key).tasks.find(t=>t.id===id);
+  if(t&&text.trim()){t.text=text.trim();save();renderCellTasks(key);}
+}
+function deleteTask(key,id) {
+  const d=getDay(key); d.tasks=d.tasks.filter(t=>t.id!==id);
+  save(); renderModalTasks(key); renderCellTasks(key);
+}
+
+// ── Diary ──
+function renderDiaryPanel(key) {
+  const data=getDay(key); const ta=document.getElementById('diaryTextarea');
+  ta.value=data.diary||'';
+  ta.style.fontFamily=getFontFamily(key)||'inherit';
+  ta.style.fontSize=getTextPx(key)?((getTextPx(key)+2)+'px'):'15px';
+  updateCharCount(ta.value);
+  ta.oninput=()=>updateCharCount(ta.value);
+}
+function updateCharCount(text) { document.getElementById('diaryCharCount').textContent=text.length+' 字'; }
+function saveDiary() {
+  if(!editingDay) return;
+  getDay(editingDay).diary=document.getElementById('diaryTextarea').value;
+  save(); renderCellDiary(editingDay);
+}
+
+// ── Style Panel ──
+function renderStylePanel(key) {
+  renderSizePresets(key); renderFontPresets(key); renderTextSizeBtns(key);
+  renderTextColorPicker(key); renderColorSwatches(key); updateImgPreview(getDay(key).bgImg);
+}
+function renderTextColorPicker(key) {
+  const data = getDay(key);
+  const c = document.getElementById('textColorSwatches'); c.innerHTML = '';
+  TEXT_COLORS.forEach(tc => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (data.textColor === tc.color ? ' active' : '');
+    sw.title = tc.label;
+    if (tc.color) {
+      sw.style.background = tc.color;
+    } else {
+      sw.style.background = 'linear-gradient(135deg,#b07fd4 0%,#7bb8e8 100%)';
+      sw.style.outline = '2px dashed rgba(0,0,0,0.15)';
+      sw.style.outlineOffset = '-4px';
+    }
+    sw.onclick = () => {
+      data.textColor = tc.color; save();
+      refreshCellStyle(key); renderTextColorPicker(key);
+    };
+    c.appendChild(sw);
+  });
+  // Custom color picker
+  const custom = document.createElement('input');
+  custom.type = 'color';
+  custom.title = '自定义颜色';
+  custom.value = data.textColor || '#7c4dff';
+  custom.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:1px;background:none;';
+  custom.oninput = () => {
+    data.textColor = custom.value; save();
+    refreshCellStyle(key); renderTextColorPicker(key);
+  };
+  c.appendChild(custom);
+}
+function renderSizePresets(key) {
+  const data=getDay(key); const c=document.getElementById('sizePresets'); c.innerHTML='';
+  CELL_SIZES.forEach(sz=>{
+    const active=data.cellHeight===sz.h; const btn=document.createElement('button');
+    btn.className='size-btn'+(active?' active':''); btn.textContent=sz.label; btn.title=sz.h+'px 高';
+    btn.onclick=()=>{
+      data.cellHeight=sz.h; save();
+      const cell=document.querySelector(`[data-key="${key}"]`);
+      if(cell)cell.style.minHeight=sz.h+'px';
+      renderSizePresets(key);
+    };
+    c.appendChild(btn);
+  });
+  if(data.cellHeight){
+    const rst=document.createElement('button'); rst.className='size-btn'; rst.textContent='重置';
+    rst.onclick=()=>{ data.cellHeight=null; save();
+      const cell=document.querySelector(`[data-key="${key}"]`); if(cell)cell.style.minHeight='';
+      renderSizePresets(key);
+    };
+    c.appendChild(rst);
+  }
+}
+function renderFontPresets(key) {
+  const data=getDay(key); const c=document.getElementById('fontPresets'); c.innerHTML='';
+  FONT_PRESETS.forEach(fp=>{
+    const active=data.fontKey===fp.key||(!data.fontKey&&fp.key==='default');
+    const btn=document.createElement('button'); btn.className='font-btn'+(active?' active':'');
+    btn.onclick=()=>{
+      data.fontKey=fp.key==='default'?null:fp.key; save();
+      refreshCellStyle(key);
+      document.getElementById('diaryTextarea').style.fontFamily=fp.family||'inherit';
+      renderFontPresets(key);
+    };
+    btn.innerHTML=`<span class="font-btn-sample" style="font-family:${fp.family}">${fp.sample}</span>
+      <span class="font-btn-label">${fp.label}</span>`;
+    c.appendChild(btn);
+  });
+}
+function renderTextSizeBtns(key) {
+  const data=getDay(key); const c=document.getElementById('textSizeBtns'); c.innerHTML='';
+  TEXT_SIZES.forEach(ts=>{
+    const active=data.textSizeKey===ts.key||(!data.textSizeKey&&ts.key==='md');
+    const btn=document.createElement('button'); btn.className='ts-btn'+(active?' active':'');
+    btn.style.fontSize=ts.px+'px'; btn.textContent=ts.label;
+    btn.onclick=()=>{
+      data.textSizeKey=ts.key==='md'?null:ts.key; save();
+      refreshCellStyle(key); renderTextSizeBtns(key);
+    };
+    c.appendChild(btn);
+  });
+}
+function renderColorSwatches(key) {
+  const data=getDay(key); const c=document.getElementById('colorSwatches'); c.innerHTML='';
+  const autoColor=getAutoColor(key);
+  const autoSw=document.createElement('div');
+  autoSw.className='color-swatch'+(!data.bg&&!data.bgImg?' active':'');
+  autoSw.style.background=autoColor;
+  autoSw.style.outline='2px dashed rgba(0,0,0,0.15)'; autoSw.style.outlineOffset='-4px';
+  autoSw.title='自动配色'; autoSw.onclick=()=>setBackground(key,null,null);
+  c.appendChild(autoSw);
+  BG_COLORS.forEach(color=>{
+    if(color===autoColor) return;
+    const sw=document.createElement('div');
+    sw.className='color-swatch'+(color===null?' clear':'')+(data.bg===color&&!data.bgImg?' active':'');
+    if(color)sw.style.background=color; if(color===null)sw.title='白色';
+    sw.onclick=()=>setBackground(key,color,null); c.appendChild(sw);
+  });
+  const picker=document.createElement('input'); picker.type='color'; picker.className='custom-color-input';
+  picker.title='自定义颜色'; picker.value=data.bg||autoColor;
+  picker.oninput=()=>setBackground(key,picker.value,null); c.appendChild(picker);
+}
+function updateImgPreview(imgData) {
+  const p=document.getElementById('imgPreview'); p.src=imgData||''; p.style.display=imgData?'block':'none';
+}
+
+// ── Background ──
+function setBackground(key,color,imgData) {
+  const data=getDay(key); data.bg=color;
+  if(imgData!==undefined)data.bgImg=imgData;
+  save(); refreshCellStyle(key); renderColorSwatches(key);
+  if(!imgData&&imgData!==undefined)updateImgPreview(null);
+}
+function handleImageUpload(e) {
+  if(!editingDay) return;
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const data=getDay(editingDay); data.bgImg=ev.target.result; data.bg=null;
+    save(); updateImgPreview(data.bgImg); refreshCellStyle(editingDay);
+    renderColorSwatches(editingDay); showToast('背景图片已设置');
+  };
+  reader.readAsDataURL(file);
+}
+function clearBackground() {
+  if(!editingDay) return;
+  const data=getDay(editingDay); data.bg=null; data.bgImg=null; save();
+  refreshCellStyle(editingDay); updateImgPreview(null); renderColorSwatches(editingDay);
+  showToast('已恢复自动配色');
+}
+function refreshCellStyle(key) {
+  const cell=document.querySelector(`[data-key="${key}"]`); if(!cell) return;
+  const data=getDay(key); const autoColor=getAutoColor(key);
+  if(data.bgImg){
+    cell.style.backgroundImage=`url('${data.bgImg}')`; cell.style.background=''; cell.style.borderColor='';
+    cell.classList.add('has-img');
+  } else {
+    cell.style.backgroundImage='';
+    const effBg=getEffectiveBg(key);
+    cell.style.background=effBg!==null?effBg:autoColor;
+    cell.style.borderColor=darkenPastel(cell.style.background)+'44';
+    cell.classList.remove('has-img');
+  }
+  const ff=getFontFamily(key); cell.style.fontFamily=ff||'';
+  const tp=getTextPx(key); cell.style.fontSize=tp?tp+'px':'';
+  const tc=getEffectiveTextColor(key);
+  if(tc) cell.style.setProperty('--cell-text', tc);
+  else cell.style.removeProperty('--cell-text');
+  renderCellTasks(key); renderCellDiary(key);
+}
+
+// ── Defaults / Favorites ──
+function openDefaultsModal() {
+  document.getElementById('defaultsModal').classList.add('open');
+  renderDefaultsModal();
+}
+function closeDefaultsModal() { document.getElementById('defaultsModal').classList.remove('open'); }
+document.getElementById('defaultsModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('defaultsModal')) closeDefaultsModal();
+});
+
+function renderDefaultsModal() {
+  const d = state.defaults;
+  // Font
+  const fc = document.getElementById('defFontPresets'); fc.innerHTML = '';
+  FONT_PRESETS.forEach(fp => {
+    const active = d.fontKey === fp.key || (!d.fontKey && fp.key === 'default');
+    const btn = document.createElement('button'); btn.className = 'font-btn' + (active ? ' active' : '');
+    btn.onclick = () => { d.fontKey = fp.key === 'default' ? null : fp.key; save(); render(); renderDefaultsModal(); };
+    btn.innerHTML = `<span class="font-btn-sample" style="font-family:${fp.family}">${fp.sample}</span><span class="font-btn-label">${fp.label}</span>`;
+    fc.appendChild(btn);
+  });
+  // Text size
+  const sc = document.getElementById('defTextSizeBtns'); sc.innerHTML = '';
+  TEXT_SIZES.forEach(ts => {
+    const active = d.textSizeKey === ts.key || (!d.textSizeKey && ts.key === 'md');
+    const btn = document.createElement('button'); btn.className = 'ts-btn' + (active ? ' active' : '');
+    btn.style.fontSize = ts.px + 'px'; btn.textContent = ts.label;
+    btn.onclick = () => { d.textSizeKey = ts.key === 'md' ? null : ts.key; save(); render(); renderDefaultsModal(); };
+    sc.appendChild(btn);
+  });
+  // Text color
+  const tc = document.getElementById('defTextColorSwatches'); tc.innerHTML = '';
+  TEXT_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (d.textColor === c.color ? ' active' : '');
+    sw.title = c.label;
+    if (c.color) sw.style.background = c.color;
+    else { sw.style.background = 'linear-gradient(135deg,#b07fd4 0%,#7bb8e8 100%)'; sw.style.outline = '2px dashed rgba(0,0,0,0.15)'; sw.style.outlineOffset = '-4px'; }
+    sw.onclick = () => { d.textColor = c.color; save(); render(); renderDefaultsModal(); };
+    tc.appendChild(sw);
+  });
+  const customTC = document.createElement('input'); customTC.type = 'color'; customTC.title = '自定义颜色';
+  customTC.value = d.textColor || '#7c4dff';
+  customTC.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:1px;background:none;';
+  customTC.oninput = () => { d.textColor = customTC.value; save(); render(); };
+  tc.appendChild(customTC);
+  // Background color
+  const bc = document.getElementById('defBgSwatches'); bc.innerHTML = '';
+  const autoSw = document.createElement('div');
+  autoSw.className = 'color-swatch' + (!d.bg ? ' active' : '');
+  autoSw.style.background = 'linear-gradient(135deg,#b07fd4 0%,#7bb8e8 100%)'; autoSw.style.outline = '2px dashed rgba(0,0,0,0.15)'; autoSw.style.outlineOffset = '-4px';
+  autoSw.title = '自动配色'; autoSw.onclick = () => { d.bg = null; save(); render(); renderDefaultsModal(); };
+  bc.appendChild(autoSw);
+  BG_COLORS.forEach(color => {
+    if (!color) return;
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (d.bg === color ? ' active' : '');
+    sw.style.background = color; sw.title = color;
+    sw.onclick = () => { d.bg = color; save(); render(); renderDefaultsModal(); };
+    bc.appendChild(sw);
+  });
+  const customBG = document.createElement('input'); customBG.type = 'color'; customBG.title = '自定义背景色';
+  customBG.value = d.bg || '#ffffff';
+  customBG.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:1px;background:none;';
+  customBG.oninput = () => { d.bg = customBG.value; save(); render(); };
+  bc.appendChild(customBG);
+}
+
+function applyDefaultsToAll() {
+  const d = state.defaults;
+  Object.values(state.days).forEach(day => {
+    if (d.fontKey !== null) day.fontKey = d.fontKey;
+    if (d.textSizeKey !== null) day.textSizeKey = d.textSizeKey;
+    if (d.textColor !== null) day.textColor = d.textColor;
+    if (d.bg !== null) day.bg = d.bg;
+  });
+  save(); render(); showToast('已应用到全部格子 ✓');
+}
+function resetDefaults() {
+  state.defaults = {...DEFAULT_DEFAULTS}; save(); render(); renderDefaultsModal();
+  showToast('已恢复默认设置');
+}
+
+// ── Sync ──
+function openSyncModal(){document.getElementById('syncModal').classList.add('open');}
+function closeSyncModal(){document.getElementById('syncModal').classList.remove('open');}
+document.getElementById('syncModal').addEventListener('click',e=>{
+  if(e.target===document.getElementById('syncModal'))closeSyncModal();
+});
+function copyScript(){
+  navigator.clipboard.writeText(document.getElementById('appleScriptCode').textContent)
+    .then(()=>showToast('脚本已复制'));
+}
+function importCalEvents(){
+  const text=document.getElementById('calImportText').value.trim(); if(!text) return;
+  let count=0;
+  text.split('\n').forEach(line=>{
+    const parts=line.split('|'); if(parts.length<2) return;
+    const parsed=new Date(parts[0].trim()); if(isNaN(parsed.getTime())) return;
+    const key=toKey(parsed); const data=getDay(key);
+    if(!data.calEvents)data.calEvents=[];
+    const title=parts.slice(1).join('|').trim();
+    if(!data.calEvents.includes(title)){data.calEvents.push(title);count++;}
+  });
+  save(); render(); closeSyncModal(); showToast(`已导入 ${count} 条日历事件`);
+}
+
+// ── Export ICS ──
+function exportICS(){
+  let ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//日历任务板//ZH\r\n`;
+  const now=new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  Object.entries(state.days).forEach(([key,data])=>{
+    const [y,m,d]=key.split('-'); const ds=`${y}${m}${d}`;
+    (data.tasks||[]).forEach(t=>{
+      ics+=`BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:${ds}\r\nDTEND;VALUE=DATE:${ds}\r\n`;
+      ics+=`SUMMARY:${t.text.replace(/,/g,'\\,')}\r\n`;
+      ics+=`STATUS:${t.done?'COMPLETED':'CONFIRMED'}\r\nDTSTAMP:${now}\r\nUID:task-${t.id}@tb\r\nEND:VEVENT\r\n`;
+    });
+    if((data.diary||'').trim()){
+      ics+=`BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:${ds}\r\nDTEND;VALUE=DATE:${ds}\r\n`;
+      ics+=`SUMMARY:📔 日记\r\nDESCRIPTION:${data.diary.replace(/\n/g,'\\n').replace(/,/g,'\\,')}\r\n`;
+      ics+=`DTSTAMP:${now}\r\nUID:diary-${key}@tb\r\nEND:VEVENT\r\n`;
+    }
+  });
+  ics+='END:VCALENDAR';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  a.download='任务板.ics'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('ICS 文件已导出');
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Desktop Widget Mode ──
+let isDesktopWidget = false;
+
+function setDesktopWidget() {
+  isDesktopWidget = true;
+  document.body.classList.add('desktop-widget');
+  render(); // re-render with transparent auto-colors
+}
+window.setDesktopWidget = setDesktopWidget;
+
+// ── Window resize (drag edges/corner) ──
+function initWindowResize() {
+  function makeHandle(id, dirs) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.screenX, startY = e.screenY;
+      const startW = window.innerWidth, startH = window.innerHeight;
+      document.body.style.userSelect = 'none';
+
+      function onMove(ev) {
+        const dx = ev.screenX - startX;
+        const dy = ev.screenY - startY;
+        const newW = dirs.includes('e') ? Math.max(600, startW + dx) : startW;
+        const newH = dirs.includes('s') ? Math.max(360, startH + dy) : startH;
+        if (window.webkit?.messageHandlers?.app) {
+          window.webkit.messageHandlers.app.postMessage(
+            { action:'resize', width: Math.round(newW), height: Math.round(newH) }
+          );
+        }
+      }
+      function onUp() {
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+  makeHandle('wr-e',  'e');
+  makeHandle('wr-s',  's');
+  makeHandle('wr-se', 'se');
+}
+
+function quitApp() {
+  if (window.webkit?.messageHandlers?.app) {
+    window.webkit.messageHandlers.app.postMessage({ action: 'quit' });
+  } else {
+    window.close();
+  }
+}
+
+// ── Pin / Float toggle ──
+let _isPinned = true;
+
+function togglePin() {
+  _isPinned = !_isPinned;
+  _applyPinState();
+  if (window.webkit?.messageHandlers?.app) {
+    window.webkit.messageHandlers.app.postMessage({ action: _isPinned ? 'pin' : 'unpin' });
+  }
+}
+
+function _applyPinState() {
+  const btn = document.getElementById('pinBtn');
+  if (!btn) return;
+  if (_isPinned) {
+    btn.textContent = '◎ 固定';
+    btn.classList.add('is-pinned');
+    btn.classList.remove('is-floating');
+    btn.title = '已固定在桌面，点击切换为浮动模式';
+  } else {
+    btn.textContent = '⬆ 浮动';
+    btn.classList.remove('is-pinned');
+    btn.classList.add('is-floating');
+    btn.title = '浮动在所有窗口之上，点击切换为固定模式';
+  }
+}
+
+// Called by Swift to sync initial/external state changes
+window._setPinState = function(pinned) {
+  _isPinned = pinned;
+  _applyPinState();
+};
+
+load();
+render();
+initWindowResize();
+</script>
+
+<!-- Window resize hot-zones -->
+<div id="wr-e"  class="win-resize"></div>
+<div id="wr-s"  class="win-resize"></div>
+<div id="wr-se" class="win-resize"></div>
+</body>
+</html>
