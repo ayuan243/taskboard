@@ -8,3 +8,14 @@ contextBridge.exposeInMainWorld('webkit', {
     }
   }
 })
+
+// Let the renderer know it's running inside Electron (not the native Swift shell)
+contextBridge.exposeInMainWorld('_isElectron', true)
+
+// Forward main-process callbacks back to the renderer
+ipcRenderer.on('cal-error', (_, msg) => {
+  if (window.onCalendarError) window.onCalendarError(msg)
+})
+ipcRenderer.on('set-pin-state', (_, pinned) => {
+  if (window._setPinState) window._setPinState(pinned)
+})

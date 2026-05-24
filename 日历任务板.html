@@ -1526,7 +1526,10 @@ window.onCalendarError = function(msg) {
 };
 
 function _postCalMsg(msg){
-  if(window.webkit?.messageHandlers?.app){
+  if(window._isElectron){
+    // Electron: send via IPC; main.js will reply with cal-error for sync actions
+    window.webkit.messageHandlers.app.postMessage(msg);
+  } else if(window.webkit?.messageHandlers?.app){
     window.webkit.messageHandlers.app.postMessage(msg);
   } else {
     setSyncStatus('⚠ 仅 macOS 原生版支持日历同步，请使用「导出 .ics」', true);
