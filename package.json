@@ -1,7 +1,7 @@
 {
   "name": "taskboard",
   "productName": "任务板",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "macOS / Windows 桌面日历任务板",
   "main": "electron/main.js",
   "scripts": {
