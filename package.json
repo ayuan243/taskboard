@@ -1,0 +1,52 @@
+{
+  "name": "taskboard",
+  "productName": "任务板",
+  "version": "1.0.0",
+  "description": "macOS / Windows 桌面日历任务板",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win --x64",
+    "build": "electron-builder --mac --win --x64"
+  },
+  "build": {
+    "appId": "com.user.taskboard",
+    "productName": "任务板",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "日历任务板.html"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "electron/icon.icns",
+      "target": [
+        { "target": "dmg", "arch": ["universal"] }
+      ]
+    },
+    "win": {
+      "icon": "electron/icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "任务板-${version}-Windows.exe"
+    },
+    "dmg": {
+      "artifactName": "任务板-${version}-macOS.dmg"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1"
+  }
+}
