@@ -607,6 +607,7 @@
     <div class="modal-tabs">
       <button class="tab-btn active" id="tab-tasks" onclick="switchTab('tasks')">📝 任务</button>
       <button class="tab-btn" id="tab-diary" onclick="switchTab('diary')">📔 日记</button>
+      <button class="tab-btn" id="tab-cal" onclick="switchTab('cal')">📅 日历</button>
       <button class="tab-btn" id="tab-style" onclick="switchTab('style')">🎨 外观</button>
     </div>
     <div class="modal-body">
@@ -621,6 +622,11 @@
       <div class="tab-panel" id="panel-diary">
         <textarea class="diary-textarea" id="diaryTextarea" placeholder="记录今天的想法、心情、灵感…"></textarea>
         <div class="diary-char-count" id="diaryCharCount">0 字</div>
+      </div>
+
+      <div class="tab-panel" id="panel-cal">
+        <div id="modalCalList"></div>
+        <p id="modalCalEmpty" style="color:var(--text-dim);font-size:13px;text-align:center;padding:28px 0">暂无从 Apple 日历导入的事件<br><span style="font-size:12px;opacity:0.6">点击「日历同步」→「从 Apple 日历读取」导入</span></p>
       </div>
 
       <div class="tab-panel" id="panel-style">
@@ -1042,9 +1048,51 @@ function renderCellDiary(key) {
 function renderCellCalEvents(key) {
   const el=document.getElementById('ce-'+key); if(!el) return;
   el.innerHTML='';
-  (getDay(key).calEvents||[]).slice(0,2).forEach(ev=>{
+  const evs = getDay(key).calEvents||[];
+  evs.slice(0,2).forEach(ev=>{
     const d=document.createElement('div'); d.className='cal-event-item';
-    d.textContent='📅 '+ev; el.appendChild(d);
+    d.style.cursor='pointer';
+    d.textContent='📅 '+ev;
+    d.onclick=e=>{ e.stopPropagation(); openModal(key,null,'cal'); };
+    el.appendChild(d);
+  });
+  if(evs.length>2){
+    const more=document.createElement('div'); more.className='cal-event-item';
+    more.style.cssText='cursor:pointer;opacity:0.6;font-size:11px';
+    more.textContent=`+${evs.length-2} 更多`;
+    more.onclick=e=>{ e.stopPropagation(); openModal(key,null,'cal'); };
+    el.appendChild(more);
+  }
+}
+
+function renderModalCalEvents(key) {
+  const list  = document.getElementById('modalCalList');
+  const empty = document.getElementById('modalCalEmpty');
+  if (!list) return;
+  const evs = getDay(key).calEvents || [];
+  list.innerHTML = '';
+  empty.style.display = evs.length ? 'none' : 'block';
+  evs.forEach((ev, idx) => {
+    const item = document.createElement('div');
+    item.className = 'modal-task-item';
+    const icon = document.createElement('span');
+    icon.style.cssText = 'font-size:15px;flex-shrink:0;margin-right:2px';
+    icon.textContent = '📅';
+    const text = document.createElement('span');
+    text.className = 'modal-task-text';
+    text.contentEditable = 'true';
+    text.textContent = ev;
+    text.onblur = () => {
+      const val = text.textContent.trim();
+      if (!val) { getDay(key).calEvents.splice(idx,1); save(); renderCellCalEvents(key); renderModalCalEvents(key); return; }
+      if (val !== ev) { getDay(key).calEvents[idx] = val; save(); renderCellCalEvents(key); }
+    };
+    const del = document.createElement('button');
+    del.className = 'task-del'; del.textContent = '×'; del.title = '删除';
+    del.style.opacity = '1';
+    del.onclick = () => { getDay(key).calEvents.splice(idx,1); save(); renderCellCalEvents(key); renderModalCalEvents(key); };
+    item.appendChild(icon); item.appendChild(text); item.appendChild(del);
+    list.appendChild(item);
   });
 }
 
@@ -1087,16 +1135,17 @@ document.getElementById('nextBtn').onclick = () => { pageStart = addDays(pageSta
 document.getElementById('todayBtn').onclick = () => { pageStart = getWeekStart(startOfToday()); render(); };
 
 // ── Modal ──
-function openModal(key, e) {
+function openModal(key, e, tab) {
   if(e) e.stopPropagation();
   editingDay = key;
   document.getElementById('modalTitle').textContent = formatDateCN(key);
   document.getElementById('modalDateLbl').textContent = isToday(key)?'📍 今天':'';
   document.getElementById('taskModal').classList.add('open');
-  switchTab('tasks');
+  switchTab(tab || 'tasks');
   renderModalTasks(key);
   renderDiaryPanel(key);
   renderStylePanel(key);
+  renderModalCalEvents(key);
 }
 function closeModal() {
   if(editingDay) saveDiary();
