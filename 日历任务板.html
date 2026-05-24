@@ -677,6 +677,9 @@
       <div class="section-label">默认背景颜色</div>
       <div class="color-picker-row" id="defBgSwatches"></div>
 
+      <div class="section-label">「今天」起始日</div>
+      <div class="text-size-btns" id="defWeekStartBtns"></div>
+
       <hr class="modal-divider">
       <div style="display:flex;gap:10px;margin-top:4px">
         <button class="btn" style="flex:1" onclick="resetDefaults()">↺ 恢复默认</button>
@@ -767,9 +770,9 @@ const TEXT_COLORS = [
 
 // ── State ──
 const STORAGE_KEY = 'daily-taskboard-v2';
-const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null };
+const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null, weekStartDay:1 };
 let state = { days: {}, defaults: {...DEFAULT_DEFAULTS} };
-let pageStart = startOfToday(); // first day of current 9-day window
+let pageStart = null; // set after load()
 let editingDay = null;
 let activeTab = 'tasks';
 
@@ -780,6 +783,13 @@ function startOfToday() {
 }
 function addDays(date, n) {
   const d = new Date(date); d.setDate(d.getDate()+n); return d;
+}
+function getWeekStart(from) {
+  const d = new Date(from); d.setHours(0,0,0,0);
+  const wsd = state.defaults.weekStartDay ?? 1;
+  const diff = (d.getDay() - wsd + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
 }
 
 // ── Persistence ──
@@ -1074,7 +1084,7 @@ function initResizeHandle(key, cell) {
 // ── Navigation ──
 document.getElementById('prevBtn').onclick = () => { pageStart = addDays(pageStart,-9); render(); };
 document.getElementById('nextBtn').onclick = () => { pageStart = addDays(pageStart,9); render(); };
-document.getElementById('todayBtn').onclick = () => { pageStart = startOfToday(); render(); };
+document.getElementById('todayBtn').onclick = () => { pageStart = getWeekStart(startOfToday()); render(); };
 
 // ── Modal ──
 function openModal(key, e) {
@@ -1384,6 +1394,16 @@ function renderDefaultsModal() {
   customBG.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:1px;background:none;';
   customBG.oninput = () => { d.bg = customBG.value; save(); render(); };
   bc.appendChild(customBG);
+  // Week start day
+  const wc = document.getElementById('defWeekStartBtns'); wc.innerHTML = '';
+  const wsd = d.weekStartDay ?? 1;
+  DAY_NAMES.forEach((name, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'ts-btn' + (wsd === i ? ' active' : '');
+    btn.textContent = '周' + name;
+    btn.onclick = () => { d.weekStartDay = i; save(); pageStart = getWeekStart(startOfToday()); render(); renderDefaultsModal(); };
+    wc.appendChild(btn);
+  });
 }
 
 function applyDefaultsToAll() {
@@ -1599,6 +1619,7 @@ window._setPinState = function(pinned) {
 };
 
 load();
+pageStart = getWeekStart(startOfToday());
 render();
 initWindowResize();
 </script>
