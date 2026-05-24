@@ -11,7 +11,10 @@ function createWindow() {
     minWidth: 600,
     minHeight: 360,
     title: '任务板',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    frame: false,           // No title bar / traffic lights (matches Swift .borderless)
+    transparent: true,      // True window transparency
+    hasShadow: false,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -22,9 +25,12 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, '..', '日历任务板.html'))
 
-  // When window loses focus in pinned mode, send it behind other windows
-  win.on('blur', () => {
-    if (isPinned) win?.moveTop() === undefined && win?.setAlwaysOnTop(false)
+  // After page loads: enter desktop-widget mode so transparent glass styles apply
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.executeJavaScript(
+      "if(window.setDesktopWidget) window.setDesktopWidget(); else document.body.classList.add('desktop-widget');"
+    )
+    win.webContents.send('set-pin-state', isPinned)
   })
 }
 
@@ -45,7 +51,7 @@ ipcMain.on('app-msg', (_, msg) => {
       win?.hide()
       break
 
-    // pin = 固定桌面（沉到普通层，不浮在其他窗口上）
+    // pin = 固定桌面（普通层，不浮在其他窗口上）
     case 'pin':
       isPinned = true
       win?.setAlwaysOnTop(false)
@@ -64,11 +70,11 @@ ipcMain.on('app-msg', (_, msg) => {
         win?.setSize(Math.round(msg.width), Math.round(msg.height))
       break
 
-    // Calendar sync requires native EventKit (macOS Swift shell only)
+    // Calendar sync requires native EventKit — not available in Electron
     case 'requestCalendarSync':
     case 'pushToCalendar':
       win?.webContents.send('cal-error',
-        '日历同步仅 macOS 原生版支持。Windows 版请使用「导出 .ics」文件后手动导入。')
+        '日历同步仅 macOS 原生版支持。请使用「导出 .ics」文件后在日历 App 中导入。')
       break
   }
 })
