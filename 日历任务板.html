@@ -1488,12 +1488,25 @@ function setSyncStatus(msg, isError){
 
 // Called by Swift after pullFromCalendar() — events = [{date:'2026-05-23', title:'...'}]
 window.applyCalendarEvents = function(events) {
-  let count=0;
-  events.forEach(ev=>{
-    if(!ev.date||!ev.title) return;
-    const key=ev.date; const data=getDay(key);
-    if(!data.calEvents) data.calEvents=[];
-    if(!data.calEvents.includes(ev.title)){ data.calEvents.push(ev.title); count++; }
+  // First pass: remove any existing calEvents that duplicate a task title (fix stale duplicates)
+  Object.entries(state.days).forEach(([key, data]) => {
+    if (!data.calEvents || !data.calEvents.length) return;
+    const taskSet = new Set((data.tasks||[]).map(t => t.text.trim().toLowerCase()));
+    data.calEvents = data.calEvents.filter(e => !taskSet.has(e.trim().toLowerCase()));
+  });
+
+  let count = 0;
+  events.forEach(ev => {
+    if (!ev.date || !ev.title) return;
+    if (ev.title === '📔 日记') return; // skip diary events we pushed ourselves
+    const key = ev.date; const data = getDay(key);
+    if (!data.calEvents) data.calEvents = [];
+    const titleLow = ev.title.trim().toLowerCase();
+    // Skip if already in calEvents
+    if (data.calEvents.some(e => e.trim().toLowerCase() === titleLow)) return;
+    // Skip if it matches an existing task (push→pull would cause duplicate)
+    if ((data.tasks||[]).some(t => t.text.trim().toLowerCase() === titleLow)) return;
+    data.calEvents.push(ev.title); count++;
   });
   save(); render();
   setSyncStatus(`✓ 已从 Apple 日历读取 ${count} 条新事件`);
@@ -1528,11 +1541,15 @@ function syncFromCalendar(){
 function pushTasksToCalendar(){
   const events=[];
   Object.entries(state.days).forEach(([key,data])=>{
+    const calSet = new Set((data.calEvents||[]).map(e => e.trim().toLowerCase()));
     (data.tasks||[]).forEach(t=>{
-      if(t.text.trim()) events.push({date:key, title:t.text.trim()});
+      const title = t.text.trim();
+      // Skip tasks that were originally pulled from Apple Calendar (avoid round-trip duplicates)
+      if(!title || calSet.has(title.toLowerCase())) return;
+      events.push({date:key, title});
     });
   });
-  if(!events.length){ setSyncStatus('没有找到任何任务'); return; }
+  if(!events.length){ setSyncStatus('没有找到任何任务（已有的日历事件不重复推送）'); return; }
   setSyncStatus(`正在推送 ${events.length} 条任务…`);
   _postCalMsg({action:'pushToCalendar', events});
 }
