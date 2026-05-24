@@ -8,8 +8,8 @@
 
 | 系统 | 文件 | 说明 |
 |------|------|------|
-| Windows | `任务板-2.0.0-Windows.exe` | 免安装，双击直接运行 |
-| macOS | `任务板-2.0.0-macOS.dmg` | 支持 Intel + Apple Silicon |
+| Windows | `任务板-3.0.0-Windows.exe` | 免安装，双击直接运行 |
+| macOS | `任务板-3.0.0-macOS.dmg` | 支持 Intel + Apple Silicon |
 
 ### macOS 安装
 
