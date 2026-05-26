@@ -25,11 +25,8 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, '..', '日历任务板.html'))
 
-  // After page loads: enter desktop-widget mode so transparent glass styles apply
+  // After page loads: restore pin state and ensure transparency works
   win.webContents.on('did-finish-load', () => {
-    win.webContents.executeJavaScript(
-      "if(window.setDesktopWidget) window.setDesktopWidget(); else document.body.classList.add('desktop-widget');"
-    )
     win.webContents.send('set-pin-state', isPinned)
   })
 }

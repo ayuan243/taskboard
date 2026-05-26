@@ -686,6 +686,9 @@
       <div class="section-label">「今天」起始日</div>
       <div class="text-size-btns" id="defWeekStartBtns"></div>
 
+      <div class="section-label">显示模式</div>
+      <div class="text-size-btns" id="defGlassModeBtns"></div>
+
       <hr class="modal-divider">
       <div style="display:flex;gap:10px;margin-top:4px">
         <button class="btn" style="flex:1" onclick="resetDefaults()">↺ 恢复默认</button>
@@ -776,7 +779,7 @@ const TEXT_COLORS = [
 
 // ── State ──
 const STORAGE_KEY = 'daily-taskboard-v2';
-const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null, weekStartDay:1 };
+const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null, weekStartDay:1, glassMode: window._isElectron ? true : false };
 let state = { days: {}, defaults: {...DEFAULT_DEFAULTS} };
 let pageStart = null; // set after load()
 let editingDay = null;
@@ -859,7 +862,14 @@ function getEffectiveBg(key) {
 }
 
 // ── Render ──
+function applyGlassMode() {
+  const glassMode = state.defaults.glassMode ?? (window._isElectron ? true : false);
+  if (glassMode) document.body.classList.add('desktop-widget');
+  else document.body.classList.remove('desktop-widget');
+}
+
 function render() {
+  applyGlassMode();
   const end = addDays(pageStart, 8);
   document.getElementById('dateRange').textContent = formatRange(pageStart, end);
   renderGrid();
@@ -1453,6 +1463,20 @@ function renderDefaultsModal() {
     btn.onclick = () => { d.weekStartDay = i; save(); pageStart = getWeekStart(startOfToday()); render(); renderDefaultsModal(); };
     wc.appendChild(btn);
   });
+  // Glass mode
+  const gc = document.getElementById('defGlassModeBtns'); gc.innerHTML = '';
+  const glassMode = d.glassMode ?? (window._isElectron ? true : false);
+  const modes = [
+    { label: '🔷 玻璃透明', value: true },
+    { label: '🔶 固色背景', value: false }
+  ];
+  modes.forEach(mode => {
+    const btn = document.createElement('button');
+    btn.className = 'ts-btn' + (glassMode === mode.value ? ' active' : '');
+    btn.textContent = mode.label;
+    btn.onclick = () => { d.glassMode = mode.value; save(); render(); renderDefaultsModal(); };
+    gc.appendChild(btn);
+  });
 }
 
 function applyDefaultsToAll() {
@@ -1689,6 +1713,7 @@ window._setPinState = function(pinned) {
 
 load();
 pageStart = getWeekStart(startOfToday());
+applyGlassMode();
 render();
 initWindowResize();
 </script>
