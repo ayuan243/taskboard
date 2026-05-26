@@ -925,9 +925,14 @@ function buildCell(key, date, data) {
 
   if (hasImg) {
     cell.style.backgroundImage = `url('${data.bgImg}')`;
-  } else {
+  } else if (!isDesktopWidget || effectiveBg !== null) {
+    // 只在非桌面模式，或用户明确设置了背景色时，设置 inline style
+    // 否则让 CSS 变量 --surface 生效
     cell.style.background = bgColor;
     cell.style.borderColor = darkenPastel(bgColor)+'44';
+  } else {
+    // 桌面模式 + 未设置背景：使用 CSS 变量，显示透明玻璃效果
+    cell.style.borderColor = 'rgba(255,255,255,0.18)';
   }
   if (data.cellHeight) cell.style.minHeight = data.cellHeight+'px';
   if (fontFamily) cell.style.fontFamily = fontFamily;
