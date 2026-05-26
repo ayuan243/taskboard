@@ -779,7 +779,7 @@ const TEXT_COLORS = [
 
 // ── State ──
 const STORAGE_KEY = 'daily-taskboard-v2';
-const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null, weekStartDay:1, glassMode: window._isElectron ? true : false };
+const DEFAULT_DEFAULTS = { fontKey:null, textSizeKey:null, textColor:null, bg:null, weekStartDay:1, glassMode: null };
 let state = { days: {}, defaults: {...DEFAULT_DEFAULTS} };
 let pageStart = null; // set after load()
 let editingDay = null;
@@ -805,6 +805,10 @@ function getWeekStart(from) {
 function load() {
   try { const r = localStorage.getItem(STORAGE_KEY); if(r) state = {...state,...JSON.parse(r)}; } catch(e){}
   if(!state.defaults) state.defaults = {...DEFAULT_DEFAULTS};
+  // Ensure glassMode is set (for backward compatibility with old saves)
+  if (state.defaults.glassMode === undefined) {
+    state.defaults.glassMode = window._isElectron ? true : false;
+  }
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function getDefaults() { return state.defaults; }
@@ -863,7 +867,12 @@ function getEffectiveBg(key) {
 
 // ── Render ──
 function applyGlassMode() {
-  const glassMode = state.defaults.glassMode ?? (window._isElectron ? true : false);
+  let glassMode = state.defaults.glassMode;
+  // 如果未设置，Electron 版默认 true，其他版本默认 false
+  if (glassMode === null || glassMode === undefined) {
+    glassMode = window._isElectron ? true : false;
+    state.defaults.glassMode = glassMode;
+  }
   if (glassMode) document.body.classList.add('desktop-widget');
   else document.body.classList.remove('desktop-widget');
 }
@@ -1465,7 +1474,10 @@ function renderDefaultsModal() {
   });
   // Glass mode
   const gc = document.getElementById('defGlassModeBtns'); gc.innerHTML = '';
-  const glassMode = d.glassMode ?? (window._isElectron ? true : false);
+  let glassMode = d.glassMode;
+  if (glassMode === null || glassMode === undefined) {
+    glassMode = window._isElectron ? true : false;
+  }
   const modes = [
     { label: '🔷 玻璃透明', value: true },
     { label: '🔶 固色背景', value: false }
