@@ -873,6 +873,7 @@ function applyGlassMode() {
     glassMode = window._isElectron ? true : false;
     state.defaults.glassMode = glassMode;
   }
+  isDesktopWidget = glassMode;  // 同时设置全局变量
   if (glassMode) document.body.classList.add('desktop-widget');
   else document.body.classList.remove('desktop-widget');
 }
