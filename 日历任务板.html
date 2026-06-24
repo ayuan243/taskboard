@@ -196,10 +196,21 @@
   }
   .cell-diary-inline:focus { border-color: rgba(208,168,255,0.65); }
 
-  /* Window resize handles */
-  .win-resize { position: fixed; z-index: 99999; }
-  #wr-e  { top: 0; right: 0; width: 6px; height: calc(100% - 12px); cursor: e-resize; }
-  #wr-s  { bottom: 0; left: 0; width: calc(100% - 12px); height: 6px; cursor: s-resize; }
+  /* Window resize handles — 8 directions */
+  /* CRITICAL: background must be non-zero alpha — macOS transparent windows make
+     fully-transparent divs click-through, so mouse events never reach them.   */
+  .win-resize {
+    position: fixed; z-index: 99999;
+    background: rgba(128,128,128,0.01);
+    -webkit-app-region: no-drag !important;
+  }
+  #wr-n  { top: 0;    left: 16px; right: 16px;  height: 8px;  cursor: n-resize; }
+  #wr-s  { bottom: 0; left: 16px; right: 16px;  height: 8px;  cursor: s-resize; }
+  #wr-e  { top: 16px; right: 0;   bottom: 16px; width: 8px;   cursor: e-resize; }
+  #wr-w  { top: 16px; left: 0;    bottom: 16px; width: 8px;   cursor: w-resize; }
+  #wr-nw { top: 0; left: 0;   width: 16px; height: 16px; cursor: nw-resize; }
+  #wr-ne { top: 0; right: 0;  width: 16px; height: 16px; cursor: ne-resize; }
+  #wr-sw { bottom: 0; left: 0;  width: 16px; height: 16px; cursor: sw-resize; }
   #wr-se { bottom: 0; right: 0; width: 16px; height: 16px; cursor: se-resize; }
   #wr-se::after {
     content: ''; position: absolute; right: 3px; bottom: 3px;
@@ -208,6 +219,22 @@
     border-radius: 0 0 2px 0;
   }
   body.desktop-widget #wr-se::after { border-color: rgba(255,255,255,0.28); }
+
+  /* ── Drag-to-move regions ──
+     In desktop-widget mode the header has -webkit-app-region:drag but
+     header * overrides to no-drag. We re-enable drag on specific safe
+     elements with higher specificity (body.dw .header .X beats body.dw .header *). */
+  .header .spacer { -webkit-app-region: drag; cursor: move; }  /* normal mode */
+  body.desktop-widget .header .spacer,
+  body.desktop-widget .header .app-title,
+  body.desktop-widget .header .date-range {
+    -webkit-app-region: drag;
+    cursor: move;
+  }
+  /* Calendar grid gap/padding areas are draggable in desktop-widget mode */
+  body.desktop-widget .calendar-grid { -webkit-app-region: drag; }
+  body.desktop-widget .day-cell,
+  body.desktop-widget .modal-overlay { -webkit-app-region: no-drag; }
 
   /* Desktop close/quit button */
   .desktop-quit-btn {
@@ -1653,30 +1680,36 @@ function setDesktopWidget() {
 }
 window.setDesktopWidget = setDesktopWidget;
 
-// ── Window resize (drag edges/corner) ──
+// ── Window resize (drag edges/corners — 8 directions) ──
+// Resize state lives entirely in the main process (win.getBounds() is authoritative,
+// avoids window.outerWidth / window.screenX DPI-scaling issues in the renderer).
 function initWindowResize() {
-  function makeHandle(id, dirs) {
+  function ipc(msg) {
+    if (window.webkit?.messageHandlers?.app)
+      window.webkit.messageHandlers.app.postMessage(msg);
+  }
+
+  function makeHandle(id, dir) {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('mousedown', e => {
       e.preventDefault(); e.stopPropagation();
-      const startX = e.screenX, startY = e.screenY;
-      const startW = window.innerWidth, startH = window.innerHeight;
       document.body.style.userSelect = 'none';
+      ipc({ action: 'startResize', dir, screenX: e.screenX, screenY: e.screenY });
 
+      let _raf = null;
       function onMove(ev) {
-        const dx = ev.screenX - startX;
-        const dy = ev.screenY - startY;
-        const newW = dirs.includes('e') ? Math.max(600, startW + dx) : startW;
-        const newH = dirs.includes('s') ? Math.max(360, startH + dy) : startH;
-        if (window.webkit?.messageHandlers?.app) {
-          window.webkit.messageHandlers.app.postMessage(
-            { action:'resize', width: Math.round(newW), height: Math.round(newH) }
-          );
-        }
+        const sx = ev.screenX, sy = ev.screenY;
+        if (_raf) cancelAnimationFrame(_raf);
+        _raf = requestAnimationFrame(() => {
+          _raf = null;
+          ipc({ action: 'doResize', screenX: sx, screenY: sy });
+        });
       }
       function onUp() {
+        if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
         document.body.style.userSelect = '';
+        ipc({ action: 'endResize' });
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
       }
@@ -1684,8 +1717,14 @@ function initWindowResize() {
       document.addEventListener('mouseup', onUp);
     });
   }
-  makeHandle('wr-e',  'e');
+
+  makeHandle('wr-n',  'n');
   makeHandle('wr-s',  's');
+  makeHandle('wr-e',  'e');
+  makeHandle('wr-w',  'w');
+  makeHandle('wr-nw', 'nw');
+  makeHandle('wr-ne', 'ne');
+  makeHandle('wr-sw', 'sw');
   makeHandle('wr-se', 'se');
 }
 
@@ -1737,9 +1776,14 @@ render();
 initWindowResize();
 </script>
 
-<!-- Window resize hot-zones -->
-<div id="wr-e"  class="win-resize"></div>
+<!-- Window resize hot-zones — 8 directions -->
+<div id="wr-n"  class="win-resize"></div>
 <div id="wr-s"  class="win-resize"></div>
+<div id="wr-e"  class="win-resize"></div>
+<div id="wr-w"  class="win-resize"></div>
+<div id="wr-nw" class="win-resize"></div>
+<div id="wr-ne" class="win-resize"></div>
+<div id="wr-sw" class="win-resize"></div>
 <div id="wr-se" class="win-resize"></div>
 </body>
 </html>

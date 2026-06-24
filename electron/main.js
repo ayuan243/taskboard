@@ -3,6 +3,7 @@ const path = require('path')
 
 let win
 let isPinned = false
+let _resizeState = null   // tracks active edge-drag in main process
 
 function createWindow() {
   win = new BrowserWindow({
@@ -62,9 +63,47 @@ ipcMain.on('app-msg', (_, msg) => {
       win?.webContents.send('set-pin-state', false)
       break
 
+    // Legacy resize (E/S only, kept for safety)
     case 'resize':
       if (msg.width && msg.height)
         win?.setSize(Math.round(msg.width), Math.round(msg.height))
+      break
+
+    // ── Edge-drag resize: state lives in main so coords are always correct ──
+    case 'startResize':
+      if (win) {
+        _resizeState = {
+          dir:    msg.dir,
+          startX: msg.screenX,
+          startY: msg.screenY,
+          bounds: win.getBounds(),   // logical pixels, authoritative
+        }
+      }
+      break
+
+    case 'doResize':
+      if (_resizeState && win) {
+        const { dir, startX, startY, bounds } = _resizeState
+        const dx = msg.screenX - startX
+        const dy = msg.screenY - startY
+
+        let { x, y, width, height } = bounds
+        if (dir.includes('e')) width  = Math.max(600, bounds.width  + dx)
+        if (dir.includes('s')) height = Math.max(360, bounds.height + dy)
+        if (dir.includes('w')) {
+          width = Math.max(600, bounds.width - dx)
+          x = bounds.x + bounds.width - width
+        }
+        if (dir.includes('n')) {
+          height = Math.max(360, bounds.height - dy)
+          y = bounds.y + bounds.height - height
+        }
+        win.setBounds({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) })
+      }
+      break
+
+    case 'endResize':
+      _resizeState = null
       break
 
     // Calendar sync requires native EventKit — not available in Electron
