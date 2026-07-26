@@ -14,10 +14,19 @@ cat > "$DEST/Contents/Info.plist" << 'EOF'
 <plist version="1.0"><dict>
   <key>CFBundleExecutable</key><string>TaskBoard</string>
   <key>CFBundleName</key><string>任务板</string>
+  <key>CFBundleDisplayName</key><string>任务板</string>
   <key>CFBundleIdentifier</key><string>com.user.taskboard</string>
-  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>3.0.1</string>
+  <key>CFBundleVersion</key><string>3.0.1</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSCalendarsUsageDescription</key>
+  <string>任务板需要读取日历事件，并将任务同步写入 Apple 日历。</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>任务板需要完整日历权限，以便读取事件并将任务写入 Apple 日历。</string>
 </dict></plist>
 EOF
 
