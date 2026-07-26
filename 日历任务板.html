@@ -42,10 +42,10 @@
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
     border-bottom-color: rgba(255,255,255,0.12) !important;
-    cursor: move;
-    -webkit-app-region: drag; /* for future Electron compat */
+    /* No drag on the header itself — only safe empty areas (.spacer/.app-title/.date-range)
+       are made draggable below. Setting drag on the parent causes Electron to swallow
+       all mouse events before buttons can receive clicks. */
   }
-  body.desktop-widget .header * { -webkit-app-region: no-drag; }
   body.desktop-widget .app-title {
     background: linear-gradient(135deg,#e0b8ff,#90d0ff) !important;
     -webkit-background-clip: text !important;
@@ -221,9 +221,9 @@
   body.desktop-widget #wr-se::after { border-color: rgba(255,255,255,0.28); }
 
   /* ── Drag-to-move regions ──
-     In desktop-widget mode the header has -webkit-app-region:drag but
-     header * overrides to no-drag. We re-enable drag on specific safe
-     elements with higher specificity (body.dw .header .X beats body.dw .header *). */
+     Only specific safe empty areas in the header are draggable.
+     Do NOT set drag on the header itself — that causes Electron to swallow
+     all click events even on no-drag children. */
   .header .spacer { -webkit-app-region: drag; cursor: move; }  /* normal mode */
   body.desktop-widget .header .spacer,
   body.desktop-widget .header .app-title,

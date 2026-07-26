@@ -13,6 +13,12 @@ class DraggableWebView: WKWebView {
     private var dragStart:  NSPoint = .zero
     private var dragFrame:  NSRect  = .zero
 
+    // Header drag state — recorded in mouseDown, consumed in mouseDragged.
+    // Keeping drag out of mouseDown means WKWebView always sees the click event.
+    private var inHeaderDrag: Bool   = false
+    private var headerDragStartMouse: NSPoint = .zero
+    private var headerDragStartFrame: NSRect  = .zero
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for a in trackingAreas where a.owner === self { removeTrackingArea(a) }
@@ -23,15 +29,10 @@ class DraggableWebView: WKWebView {
     }
 
     private func edgeAt(_ loc: NSPoint) -> String {
-        // Support both flipped (WKWebView y=0 at top) and non-flipped coords.
-        // We detect edges from BOTH ends of each axis so either system works.
-        let atTop    = loc.y < edgeSize || loc.y > bounds.height - edgeSize
-        let atBottom = loc.y < edgeSize || loc.y > bounds.height - edgeSize
-        let nearTop  = loc.y > bounds.height - edgeSize   // non-flipped top / flipped bottom
-        let nearBot  = loc.y < edgeSize                   // non-flipped bottom / flipped top
-        let nearRight = loc.x > bounds.width - edgeSize
+        let nearTop   = loc.y > bounds.height - edgeSize
+        let nearBot   = loc.y < edgeSize
+        let nearRight = loc.x > bounds.width  - edgeSize
         let nearLeft  = loc.x < edgeSize
-        _ = atTop; _ = atBottom
         if nearTop  && nearLeft  { return "nw" }
         if nearTop  && nearRight { return "ne" }
         if nearBot  && nearRight { return "se" }
@@ -53,11 +54,9 @@ class DraggableWebView: WKWebView {
         }
     }
 
-    // Returns true if loc is inside the top or bottom header drag zone
-    // (works regardless of whether WKWebView is flipped).
     private func inHeaderZone(_ loc: NSPoint) -> Bool {
-        let yLow  = loc.y < 64 && loc.y >= edgeSize           // flipped: top 64px
-        let yHigh = loc.y > bounds.height - 64 && loc.y <= bounds.height - edgeSize // non-flipped: top 64px
+        let yLow  = loc.y < 64 && loc.y >= edgeSize
+        let yHigh = loc.y > bounds.height - 64 && loc.y <= bounds.height - edgeSize
         return yLow || yHigh
     }
 
@@ -69,56 +68,58 @@ class DraggableWebView: WKWebView {
         let edge = edgeAt(loc)
 
         if !edge.isEmpty {
+            // Edge resize: capture state, do not forward — no click semantics on edges.
             resizeEdge = edge
             dragStart  = NSEvent.mouseLocation
             dragFrame  = window?.frame ?? .zero
-
-        } else if inHeaderZone(loc) {
-            guard let win = window else { super.mouseDown(with: event); return }
-            let startFrame = win.frame
-            let startMouse = NSEvent.mouseLocation
-            // Synchronous event-tracking loop: cannot be intercepted by WKWebView.
-            while let e = NSApp.nextEvent(
-                matching: [.leftMouseDragged, .leftMouseUp],
-                until: .distantFuture,
-                inMode: .eventTracking,
-                dequeue: true)
-            {
-                if e.type == .leftMouseUp { break }
-                let cur = NSEvent.mouseLocation
-                win.setFrameOrigin(NSPoint(
-                    x: startFrame.origin.x + cur.x - startMouse.x,
-                    y: startFrame.origin.y + cur.y - startMouse.y))
-            }
-
+            inHeaderDrag = false
         } else {
             resizeEdge = ""
+            if inHeaderZone(loc) {
+                // Remember where the drag might start; actual move happens in mouseDragged.
+                inHeaderDrag = true
+                headerDragStartMouse = NSEvent.mouseLocation
+                headerDragStartFrame = window?.frame ?? .zero
+            } else {
+                inHeaderDrag = false
+            }
+            // Always forward to WKWebView so JavaScript receives click events.
             super.mouseDown(with: event)
         }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard !resizeEdge.isEmpty, let win = window else {
+        if !resizeEdge.isEmpty, let win = window {
+            let cur = NSEvent.mouseLocation
+            let dx  = Double(cur.x - dragStart.x)
+            let dy  = Double(cur.y - dragStart.y)
+            let f   = dragFrame
+            var x = Double(f.origin.x), y = Double(f.origin.y)
+            var w = Double(f.size.width),  h = Double(f.size.height)
+
+            if resizeEdge.contains("e") { w = max(600, w + dx) }
+            if resizeEdge.contains("w") { let nw = max(600, w - dx); x += w - nw; w = nw }
+            if resizeEdge.contains("n") { h = max(360, h + dy) }
+            if resizeEdge.contains("s") { let nh = max(360, h - dy); y += h - nh; h = nh }
+
+            win.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true, animate: false)
+        } else if inHeaderDrag, let win = window {
+            let cur = NSEvent.mouseLocation
+            win.setFrameOrigin(NSPoint(
+                x: headerDragStartFrame.origin.x + cur.x - headerDragStartMouse.x,
+                y: headerDragStartFrame.origin.y + cur.y - headerDragStartMouse.y))
+        } else {
             super.mouseDragged(with: event)
-            return
         }
-        let cur = NSEvent.mouseLocation
-        let dx  = Double(cur.x - dragStart.x)
-        let dy  = Double(cur.y - dragStart.y)
-        let f   = dragFrame
-        var x = Double(f.origin.x), y = Double(f.origin.y)
-        var w = Double(f.size.width),  h = Double(f.size.height)
-
-        if resizeEdge.contains("e") { w = max(600, w + dx) }
-        if resizeEdge.contains("w") { let nw = max(600, w - dx); x += w - nw; w = nw }
-        if resizeEdge.contains("n") { h = max(360, h + dy) }
-        if resizeEdge.contains("s") { let nh = max(360, h - dy); y += h - nh; h = nh }
-
-        win.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true, animate: false)
     }
 
     override func mouseUp(with event: NSEvent) {
-        if !resizeEdge.isEmpty { resizeEdge = "" } else { super.mouseUp(with: event) }
+        inHeaderDrag = false
+        if !resizeEdge.isEmpty {
+            resizeEdge = ""
+        } else {
+            super.mouseUp(with: event)
+        }
     }
 }
 
