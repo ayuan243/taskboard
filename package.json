@@ -23,6 +23,10 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "electron/icon.icns",
+      "extendInfo": {
+        "NSCalendarsUsageDescription": "任务板需要读取日历事件，并将任务同步写入 Apple 日历。",
+        "NSCalendarsFullAccessUsageDescription": "任务板需要完整日历权限，以便读取事件并将任务写入 Apple 日历。"
+      },
       "target": [
         { "target": "dmg", "arch": ["universal"] }
       ]

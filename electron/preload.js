@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('_isElectron', true)
 ipcRenderer.on('cal-error', (_, msg) => {
   if (window.onCalendarError) window.onCalendarError(msg)
 })
+ipcRenderer.on('cal-events', (_, events) => {
+  if (window.applyCalendarEvents) window.applyCalendarEvents(events)
+})
+ipcRenderer.on('cal-push-done', (_, n) => {
+  if (window.onCalendarPushDone) window.onCalendarPushDone(n)
+})
 ipcRenderer.on('set-pin-state', (_, pinned) => {
   if (window._setPinState) window._setPinState(pinned)
 })

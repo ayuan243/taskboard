@@ -285,22 +285,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     // MARK: - Calendar
 
     func requestCalendarAccess(completion: @escaping (Bool) -> Void) {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        switch status {
-        case .fullAccess, .authorized:
-            completion(true)
-        case .notDetermined:
-            if #available(macOS 14.0, *) {
-                eventStore.requestFullAccessToEvents { granted, _ in
-                    DispatchQueue.main.async { completion(granted) }
+        if #available(macOS 14.0, *) {
+            // Always call requestFullAccessToEvents — it returns immediately (no dialog)
+            // when access is already granted, and handles the case where the user
+            // granted permission in System Settings after the app started.
+            eventStore.requestFullAccessToEvents { granted, _ in
+                if granted {
+                    DispatchQueue.main.async { completion(true) }
+                    return
                 }
-            } else {
-                eventStore.requestAccess(to: .event) { granted, _ in
-                    DispatchQueue.main.async { completion(granted) }
-                }
+                // writeOnly (rawValue 4) still lets us push events
+                let s = EKEventStore.authorizationStatus(for: .event)
+                DispatchQueue.main.async { completion(s.rawValue == 4) }
             }
-        default:
-            completion(false)
+        } else {
+            eventStore.requestAccess(to: .event) { granted, _ in
+                DispatchQueue.main.async { completion(granted) }
+            }
         }
     }
 
@@ -378,6 +379,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     func sendCalendarError(_ msg: String) {
         let escaped = msg.replacingOccurrences(of: "'", with: "\\'")
         webView?.evaluateJavaScript("window.onCalendarError && window.onCalendarError('\(escaped)')")
+        // Open System Settings → Privacy → Calendars so the user can grant access directly
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Navigation
@@ -391,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 self.setPinned(self.isPinned)
                 let status = EKEventStore.authorizationStatus(for: .event)
-                if status == .fullAccess || status == .authorized {
+                if status == .fullAccess || status.rawValue == 4 {
                     self.pullFromCalendar()
                 }
             }
